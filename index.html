@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My HTML Directory</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            line-height: 1.5;
+        }
+        .file-list {
+            background: #f4f4f5;
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+        li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>My Landing Page</h1>
+    <p>Here are the HTML files currently in the repository:</p>
+
+    <div class="file-list">
+        <ul>
+            {% for page in site.html_pages %}
+                {% if page.url != "/" %}
+                    <li><a href="{{ site.baseurl }}{{ page.url }}">{{ page.name }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {% for file in site.static_files %}
+                {% if file.extname == '.html' %}
+                    <li><a href="{{ site.baseurl }}{{ file.path }}">{{ file.name }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
