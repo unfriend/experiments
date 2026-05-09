@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamamoto Cycles & Kuramoto Dynamics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Share Tech Mono', monospace; }
+        
+        /* CRT Scanline Overlay */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 50;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Cyberpunk custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; border-left: 1px solid #333; }
+        ::-webkit-scrollbar-thumb { background: #d946ef; border: 1px solid #fdf4ff; }
+        ::-webkit-scrollbar-thumb:hover { background: #e879f9; box-shadow: 0 0 10px #e879f9; }
+        
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 4px;
+            background: #111;
+            border: 1px solid #333;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 8px;
+            background: currentColor;
+            margin-top: -7px;
+            cursor: pointer;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        /* Vaporwave Grid Background for Canvas */
+        canvas {
+            background: repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(34, 211, 238, 0.05) 20px),
+                        repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(34, 211, 238, 0.05) 20px);
+        }
+    </style>
+</head>
+<body class="bg-black text-green-400 crt h-screen w-screen overflow-hidden flex flex-col md:flex-row selection:bg-fuchsia-500/30">
+
+    <!-- Control Panel Sidebar -->
+    <aside class="w-full md:w-80 lg:w-96 bg-black/90 border-r border-fuchsia-500/30 flex flex-col h-full z-10 shrink-0 shadow-[4px_0_15px_rgba(217,70,239,0.15)]">
+        <div class="p-6 pb-4 border-b border-fuchsia-500/30 shadow-sm relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-fuchsia-500/10 pointer-events-none"></div>
+            <h1 class="text-xl lg:text-2xl font-bold bg-gradient-to-br from-cyan-400 via-fuchsia-400 to-green-400 bg-clip-text text-transparent tracking-widest uppercase drop-shadow-[0_0_8px_rgba(232,121,249,0.5)]">
+                Yamamoto_OS
+            </h1>
+            <p class="text-[10px] text-green-500/70 mt-2 leading-relaxed uppercase tracking-widest">
+                > INIT_LIMIT_CYCLES...<br>
+                > SYS.KURAMOTO_DYNAMICS ACTIVE<br>
+                > AWAITING INPUT
+            </p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            <!-- Simulation Parameters -->
+            <div class="space-y-5">
+                <h3 class="text-[10px] uppercase tracking-[0.2em] text-cyan-500 font-bold mb-2 border-b border-cyan-900 pb-1">Network_Params</h3>
+                
+                <div class="group">
+                    <div class="flex justify-between text-xs mb-1.5"><label class="text-green-400/80 uppercase">Nodes (N)</label><span id="numNodesVal" class="text-cyan-300 drop-shadow-[0_0_5px_rgba(103,232,249,0.8)]">40</span></div>
+                    <input type="range" id="numNodes" min="3" max="100" value="40" class="w-full text-cyan-400">
+                </div>
+                
+                <div class="group">
+                    <div class="flex justify-between text-xs mb-1.5"><label class="text-green-400/80 uppercase">Coup_Radius (R)</label><span id="radiusVal" class="text-cyan-300 drop-shadow-[0_0_5px_rgba(103,232,249,0.8)]">2</span></div>
+                    <input type="range" id="radius" min="1" max="20" value="2" class="w-full text-cyan-400">
+                </div>
+
+                <div class="group">
+                    <div class="flex justify-between text-xs mb-1.5"><label class="text-green-400/80 uppercase">Coup_Strength (K)</label><span id="couplingVal" class="text-fuchsia-400 drop-shadow-[0_0_5px_rgba(232,121,249,0.8)]">1.5</span></div>
+                    <input type="range" id="coupling" min="-2" max="5" step="0.1" value="1.5" class="w-full text-fuchsia-500">
+                </div>
+
+                <div class="group">
+                    <div class="flex justify-between text-xs mb-1.5"><label class="text-green-400/80 uppercase">Phase_Lag (α)</label><span id="alphaVal" class="text-fuchsia-400 drop-shadow-[0_0_5px_rgba(232,121,249,0.8)]">0.00</span></div>
+                    <input type="range" id="alpha" min="-1.5" max="1.5" step="0.05" value="0" class="w-full text-fuchsia-500">
+                </div>
+
+                <div class="group">
+                    <div class="flex justify-between text-xs mb-1.5"><label class="text-green-400/80 uppercase">Freq_Var (σ)</label><span id="varianceVal" class="text-rose-400 drop-shadow-[0_0_5px_rgba(251,113,133,0.8)]">0.00</span></div>
+                    <input type="range" id="variance" min="0" max="2" step="0.05" value="0" class="w-full text-rose-500">
+                </div>
+            </div>
+
+            <!-- Playback Controls -->
+            <div class="flex gap-3 pt-2">
+                <button id="btnPlay" class="flex-1 bg-black hover:bg-cyan-950/30 border border-cyan-500/50 text-cyan-400 py-2 text-xs uppercase tracking-widest transition-all focus:ring-1 ring-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.2)] hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]">SYS.PAUSE</button>
+                <button id="btnReset" class="flex-1 bg-black hover:bg-fuchsia-950/30 border border-fuchsia-500/50 text-fuchsia-400 py-2 text-xs uppercase tracking-widest transition-all shadow-[0_0_10px_rgba(217,70,239,0.2)] hover:shadow-[0_0_15px_rgba(217,70,239,0.4)]">RND_SEED</button>
+            </div>
+            
+            <div class="pt-1">
+                <button id="btnAudio" class="w-full bg-black hover:bg-yellow-950/30 border border-yellow-500/50 text-yellow-500 py-2 text-xs uppercase tracking-widest transition-all shadow-[0_0_10px_rgba(234,179,8,0.2)] hover:shadow-[0_0_15px_rgba(234,179,8,0.4)]">
+                    > AUDIO.OFF
+                </button>
+            </div>
+
+            <!-- Presets -->
+            <div class="pt-2">
+                <h3 class="text-[10px] uppercase tracking-[0.2em] text-cyan-500 font-bold mb-3 border-b border-cyan-900 pb-1">Override_Codes</h3>
+                <div class="space-y-2">
+                    <button onclick="applyPreset('twisted')" class="w-full text-left px-4 py-2 bg-black hover:bg-green-950/30 border border-green-500/30 text-green-400 text-xs uppercase tracking-wider transition-colors border-l-4 border-l-green-400 group flex justify-between items-center hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]">
+                        <span>> Twisted_State</span>
+                        <span class="opacity-0 group-hover:opacity-100 transition-opacity animate-pulse">_</span>
+                    </button>
+                    <button onclick="applyPreset('yamamoto')" class="w-full text-left px-4 py-2 bg-black hover:bg-fuchsia-950/30 border border-fuchsia-500/30 text-fuchsia-400 text-xs uppercase tracking-wider transition-colors border-l-4 border-l-fuchsia-400 group flex justify-between items-center hover:shadow-[0_0_10px_rgba(232,121,249,0.2)]">
+                        <span>> Yamamoto_3_Node</span>
+                        <span class="opacity-0 group-hover:opacity-100 transition-opacity animate-pulse">_</span>
+                    </button>
+                    <button onclick="applyPreset('sync')" class="w-full text-left px-4 py-2 bg-black hover:bg-cyan-950/30 border border-cyan-500/30 text-cyan-400 text-xs uppercase tracking-wider transition-colors border-l-4 border-l-cyan-400 group flex justify-between items-center hover:shadow-[0_0_10px_rgba(34,211,238,0.2)]">
+                        <span>> Global_Sync</span>
+                        <span class="opacity-0 group-hover:opacity-100 transition-opacity animate-pulse">_</span>
+                    </button>
+                    <button onclick="applyPreset('chimera')" class="w-full text-left px-4 py-2 bg-black hover:bg-rose-950/30 border border-rose-500/30 text-rose-400 text-xs uppercase tracking-wider transition-colors border-l-4 border-l-rose-400 group flex justify-between items-center hover:shadow-[0_0_10px_rgba(251,113,133,0.2)]">
+                        <span>> Chimera_State</span>
+                        <span class="opacity-0 group-hover:opacity-100 transition-opacity animate-pulse">_</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Telemetry Data -->
+        <div class="p-6 bg-black/90 border-t border-fuchsia-500/30 shrink-0 relative">
+            <div class="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
+            <div class="text-xs text-green-400/70 flex justify-between mb-2 uppercase tracking-wider">
+                <span>Glb_Order [r]:</span>
+                <span id="orderParam" class="text-cyan-400 drop-shadow-[0_0_4px_rgba(34,211,238,0.8)]">0.000</span>
+            </div>
+            <div class="text-xs text-green-400/70 flex justify-between uppercase tracking-wider">
+                <span>Loc_Sync [r_loc]:</span>
+                <span id="localOrderParam" class="text-fuchsia-400 drop-shadow-[0_0_4px_rgba(232,121,249,0.8)]">0.000</span>
+            </div>
+            <div class="mt-4 text-[9px] text-green-600/50 leading-tight uppercase font-mono tracking-widest border border-green-900/30 p-2 bg-green-950/10">
+                // G-ORDER MEASURES TOTAL SYNC.<br>
+                // L-ORDER MEASURES NEIGHBOR ALIGNMENT.
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Visualizer Area -->
+    <main class="flex-1 flex flex-col p-4 md:p-6 gap-4 md:gap-6 overflow-hidden bg-black relative">
+        <!-- Network Ring -->
+        <div class="flex-1 bg-black border border-cyan-500/30 relative shadow-[0_0_30px_rgba(6,182,212,0.15)] overflow-hidden flex items-center justify-center">
+            <div class="absolute inset-0 border-[1px] border-cyan-500/20 m-2 pointer-events-none"></div>
+            <canvas id="ringCanvas" class="absolute inset-0 w-full h-full"></canvas>
+            <div class="absolute top-4 left-4 text-xs font-bold tracking-[0.2em] text-cyan-500 uppercase pointer-events-none drop-shadow-[0_0_2px_rgba(6,182,212,0.8)]">SYS.TOPOLOGY_VIEW</div>
+        </div>
+        
+        <!-- Phase Plot -->
+        <div class="h-48 md:h-64 bg-black border border-fuchsia-500/30 relative shadow-[0_0_30px_rgba(217,70,239,0.15)] overflow-hidden shrink-0">
+            <div class="absolute inset-0 border-[1px] border-fuchsia-500/20 m-2 pointer-events-none"></div>
+            <canvas id="plotCanvas" class="absolute inset-0 w-full h-full"></canvas>
+            <div class="absolute top-4 left-4 text-xs font-bold tracking-[0.2em] text-fuchsia-500 uppercase pointer-events-none drop-shadow-[0_0_2px_rgba(217,70,239,0.8)]">SYS.PHASE_OSCILLOSCOPE</div>
+        </div>
+    </main>
+
+    <script>
+        // --- Simulation State ---
+        let N = 40;             // Number of nodes
+        let K = 1.5;            // Coupling strength
+        let R = 2;              // Coupling radius
+        let sigma = 0.0;        // Frequency variance
+        let alpha = 0.0;        // Phase lag
+        
+        let dt = 0.04;          // Time step
+        let baseOmega = 1.5;    // Base natural frequency
+        
+        let thetas = [];        // Phases
+        let omegas = [];        // Intrinsic frequencies
+        let history = [];       // Time series history for plotting
+        let isPlaying = true;
+        let animationId = null;
+        let globalTime = 0;     // Time tracker for the noise vector field
+        
+        // --- Audio State ---
+        let audioCtx = null;
+        let masterGain = null;
+        let masterFilter = null;
+        let delayNode = null;
+        let synthNodes = [];
+        let isAudioEnabled = false;
+        
+        // Extended C minor pentatonic for moody synthwave
+        const synthScale = [130.81, 155.56, 174.61, 196.00, 233.08, 261.63, 311.13, 349.23, 392.00, 466.16]; 
+
+        // --- Initialization ---
+        function init(thetaFn = null) {
+            thetas = new Array(N).fill(0).map((_, i) => thetaFn ? thetaFn(i) : Math.random() * 2 * Math.PI);
+            regenerateOmegas();
+            history = [];
+            if (isAudioEnabled) rebuildSynth();
+        }
+
+        function regenerateOmegas() {
+            omegas = new Array(N).fill(0).map(() => baseOmega + (Math.random() - 0.5) * sigma * 2);
+        }
+
+        // --- UI & Event Listeners ---
+        function bindControls() {
+            const inputs = [
+                { id: 'numNodes', varName: 'N', isInt: true, updateFn: (v) => { N = v; updateRadiusMax(); init(); } },
+                { id: 'coupling', varName: 'K', isInt: false, updateFn: (v) => K = v },
+                { id: 'radius', varName: 'R', isInt: true, updateFn: (v) => R = v },
+                { id: 'variance', varName: 'sigma', isInt: false, updateFn: (v) => { sigma = v; regenerateOmegas(); } },
+                { id: 'alpha', varName: 'alpha', isInt: false, updateFn: (v) => alpha = v }
+            ];
+
+            inputs.forEach(cfg => {
+                document.getElementById(cfg.id).addEventListener('input', (e) => {
+                    let val = cfg.isInt ? parseInt(e.target.value) : parseFloat(e.target.value);
+                    cfg.updateFn(val);
+                    document.getElementById(cfg.id + 'Val').innerText = cfg.isInt ? val : val.toFixed(2);
+                });
+            });
+
+            document.getElementById('btnPlay').addEventListener('click', (e) => {
+                isPlaying = !isPlaying;
+                e.target.innerText = isPlaying ? 'SYS.PAUSE' : 'SYS.PLAY';
+                if (isPlaying) {
+                    e.target.className = "flex-1 bg-black hover:bg-cyan-950/30 border border-cyan-500/50 text-cyan-400 py-2 text-xs uppercase tracking-widest transition-all focus:ring-1 ring-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.2)] hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]";
+                } else {
+                    e.target.className = "flex-1 bg-black hover:bg-green-950/30 border border-green-500/50 text-green-400 py-2 text-xs uppercase tracking-widest transition-all focus:ring-1 ring-green-500 shadow-[0_0_10px_rgba(74,222,128,0.2)] hover:shadow-[0_0_15px_rgba(74,222,128,0.4)]";
+                }
+            });
+
+            document.getElementById('btnReset').addEventListener('click', () => init());
+            
+            document.getElementById('btnAudio').addEventListener('click', (e) => {
+                if (!audioCtx) initAudioSystem();
+                
+                isAudioEnabled = !isAudioEnabled;
+                if (isAudioEnabled) {
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                    e.target.innerText = '> AUDIO.ON [ACTIVE]';
+                    e.target.className = "w-full bg-black hover:bg-green-950/30 border border-green-500/50 text-green-400 py-2 text-xs uppercase tracking-widest transition-all shadow-[0_0_10px_rgba(74,222,128,0.2)] hover:shadow-[0_0_15px_rgba(74,222,128,0.4)]";
+                } else {
+                    e.target.innerText = '> AUDIO.OFF [MUTED]';
+                    e.target.className = "w-full bg-black hover:bg-yellow-950/30 border border-yellow-500/50 text-yellow-500 py-2 text-xs uppercase tracking-widest transition-all shadow-[0_0_10px_rgba(234,179,8,0.2)] hover:shadow-[0_0_15px_rgba(234,179,8,0.4)]";
+                }
+                rebuildSynth();
+            });
+        }
+
+        function updateRadiusMax() {
+            let maxR = Math.max(1, Math.floor(N / 2));
+            let rInput = document.getElementById('radius');
+            rInput.max = maxR;
+            if (R > maxR) {
+                R = maxR;
+                rInput.value = R;
+                document.getElementById('radiusVal').innerText = R;
+            }
+        }
+
+        function syncUIToState() {
+            document.getElementById('numNodes').value = N;
+            document.getElementById('numNodesVal').innerText = N;
+            updateRadiusMax();
+            document.getElementById('radius').value = R;
+            document.getElementById('radiusVal').innerText = R;
+            document.getElementById('coupling').value = K;
+            document.getElementById('couplingVal').innerText = K.toFixed(2);
+            document.getElementById('variance').value = sigma;
+            document.getElementById('varianceVal').innerText = sigma.toFixed(2);
+            document.getElementById('alpha').value = alpha;
+            document.getElementById('alphaVal').innerText = alpha.toFixed(2);
+        }
+
+        function applyPreset(type) {
+            if (type === 'sync') {
+                N=40; K=3.0; R=3; sigma=0.2; alpha=0.0;
+                syncUIToState(); init();
+            } else if (type === 'twisted') {
+                N=40; K=1.5; R=2; sigma=0.0; alpha=0.0;
+                syncUIToState(); init((i) => i * 2 * Math.PI / N);
+            } else if (type === 'yamamoto') {
+                N=3; K=2.0; R=1; sigma=0.0; alpha=0.0;
+                syncUIToState(); init((i) => i * 2 * Math.PI / 3);
+            } else if (type === 'chimera') {
+                N=60; K=2.0; R=20; sigma=0.0; alpha=1.35;
+                syncUIToState(); 
+                init((i) => i < N/2 ? 0 : Math.random() * 2 * Math.PI);
+            }
+        }
+        
+        // --- Audio Engine ---
+        function initAudioSystem() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            masterGain = audioCtx.createGain();
+            masterFilter = audioCtx.createBiquadFilter();
+            delayNode = audioCtx.createDelay();
+            let feedbackNode = audioCtx.createGain();
+            
+            // Filter Setup
+            masterFilter.type = 'lowpass';
+            masterFilter.frequency.value = 400; // Baseline, modulated later
+            masterFilter.Q.value = 3;
+            
+            // Delay Setup (Vaporwave echo)
+            delayNode.delayTime.value = 0.33; // 330ms
+            feedbackNode.gain.value = 0.4;
+            
+            // Routing: Nodes -> Filter -> Gain -> (Delay Loop) -> Destination
+            masterFilter.connect(masterGain);
+            masterGain.connect(audioCtx.destination);
+            
+            masterGain.connect(delayNode);
+            delayNode.connect(feedbackNode);
+            feedbackNode.connect(delayNode);
+            delayNode.connect(audioCtx.destination);
+        }
+
+        function rebuildSynth() {
+            if (!audioCtx) return;
+            
+            // Clean up existing nodes
+            synthNodes.forEach(node => {
+                node.osc.stop();
+                node.osc.disconnect();
+                node.gain.disconnect();
+                if(node.panner) node.panner.disconnect();
+            });
+            synthNodes = [];
+            
+            if (!isAudioEnabled) return;
+            
+            // Scale total volume so it doesn't clip with many nodes
+            masterGain.gain.value = 1.0 / Math.max(1, N * 0.4);
+            
+            for(let i=0; i<N; i++) {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                let panner = audioCtx.createStereoPanner ? audioCtx.createStereoPanner() : null;
+                
+                // Assign a frequency based on position and scale
+                let octaveShift = Math.floor(i / synthScale.length);
+                let baseFreq = synthScale[i % synthScale.length];
+                osc.type = 'triangle'; 
+                osc.frequency.value = baseFreq * Math.pow(2, octaveShift * 0.5); 
+                
+                // Map physical ring position to stereo pan
+                if (panner) {
+                    let angle = i * 2 * Math.PI / N;
+                    panner.pan.value = Math.cos(angle);
+                    
+                    osc.connect(gain);
+                    gain.connect(panner);
+                    panner.connect(masterFilter);
+                } else {
+                    osc.connect(gain);
+                    gain.connect(masterFilter);
+                }
+                
+                gain.gain.value = 0;
+                osc.start();
+                
+                synthNodes.push({ osc, gain, panner });
+            }
+        }
+        
+        function updateAudioDynamics(globalR) {
+            if (!isAudioEnabled || !audioCtx) return;
+            
+            // Map global sync order (r) to the filter cutoff frequency
+            // Desync = muffled, Sync = bright and resonant
+            let targetCutoff = 200 + Math.pow(globalR, 2) * 2500;
+            masterFilter.frequency.setTargetAtTime(targetCutoff, audioCtx.currentTime, 0.1);
+            
+            // Modulate individual node volume based on phase
+            for(let i=0; i<N; i++) {
+                if (synthNodes[i]) {
+                    // Pluck rhythmically when phase crosses the upper crest
+                    let amp = Math.max(0, Math.sin(thetas[i]));
+                    amp = Math.pow(amp, 2); // Square it for a sharper 'pluck' sound
+                    synthNodes[i].gain.gain.setTargetAtTime(amp, audioCtx.currentTime, 0.05);
+                }
+            }
+        }
+
+        // --- Physics Engine ---
+        function updatePhysics() {
+            let dTheta = new Array(N).fill(0);
+            
+            for(let i=0; i<N; i++) {
+                let sum = 0;
+                let neighborsCount = 0;
+                
+                for(let d=1; d<=R; d++) {
+                    let j1 = (i + d) % N;
+                    let j2 = (i - d + N) % N;
+                    
+                    if (j1 === j2) {
+                        sum += Math.sin(thetas[j1] - thetas[i] - alpha);
+                        neighborsCount += 1;
+                    } else {
+                        sum += Math.sin(thetas[j1] - thetas[i] - alpha);
+                        sum += Math.sin(thetas[j2] - thetas[i] - alpha);
+                        neighborsCount += 2;
+                    }
+                }
+                
+                if (neighborsCount > 0) {
+                    dTheta[i] = omegas[i] + (K / neighborsCount) * sum;
+                } else {
+                    dTheta[i] = omegas[i];
+                }
+            }
+            
+            for(let i=0; i<N; i++) {
+                thetas[i] = (thetas[i] + dTheta[i] * dt) % (2 * Math.PI);
+                if(thetas[i] < 0) thetas[i] += 2*Math.PI;
+            }
+        }
+
+        function calculateOrderParameters() {
+            // Global Order (r)
+            let sumCos = 0, sumSin = 0;
+            for(let i=0; i<N; i++) {
+                sumCos += Math.cos(thetas[i]);
+                sumSin += Math.sin(thetas[i]);
+            }
+            let globalR = Math.sqrt(sumCos*sumCos + sumSin*sumSin) / N;
+            
+            // Local Order (r_loc)
+            let localSumCos = 0;
+            for(let i=0; i<N; i++) {
+                let iSumCos = 0, iSumSin = 0;
+                let nCnt = 0;
+                for(let d=1; d<=R; d++) {
+                    let j1 = (i + d) % N;
+                    let j2 = (i - d + N) % N;
+                    if (j1 === j2) {
+                        iSumCos += Math.cos(thetas[j1] - thetas[i]);
+                        iSumSin += Math.sin(thetas[j1] - thetas[i]);
+                        nCnt++;
+                    } else {
+                        iSumCos += Math.cos(thetas[j1] - thetas[i]);
+                        iSumSin += Math.sin(thetas[j1] - thetas[i]);
+                        iSumCos += Math.cos(thetas[j2] - thetas[i]);
+                        iSumSin += Math.sin(thetas[j2] - thetas[i]);
+                        nCnt += 2;
+                    }
+                }
+                if(nCnt > 0) {
+                    localSumCos += Math.sqrt(iSumCos**2 + iSumSin**2) / nCnt;
+                }
+            }
+            let localR = N > 0 && R > 0 ? localSumCos / N : 0;
+
+            document.getElementById('orderParam').innerText = globalR.toFixed(3);
+            document.getElementById('localOrderParam').innerText = localR.toFixed(3);
+            
+            return { globalR, localR };
+        }
+
+        // --- Rendering ---
+        function resizeCanvas(canvas) {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            const displayWidth = Math.round(rect.width);
+            const displayHeight = Math.round(rect.height);
+            
+            if (canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr) {
+                canvas.width = displayWidth * dpr;
+                canvas.height = displayHeight * dpr;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(dpr, dpr);
+            }
+            return { width: displayWidth, height: displayHeight };
+        }
+
+        // --- Procedural Noise & Vector Field ---
+        function smoothNoise(x, y, t) {
+            // Composite sine/cosine waves to simulate Perlin-like fluid noise
+            return Math.sin(x * 0.008 + t * 0.5) + 
+                   Math.cos(y * 0.012 - t * 0.3) + 
+                   Math.sin((x + y) * 0.005 + t * 0.8);
+        }
+
+        function drawVectorField(ctx, width, height) {
+            const spacing = 35; // Spacing of the grid
+            ctx.lineWidth = 1.5;
+            ctx.shadowBlur = 0; // Keep the background crisp
+            
+            for(let x = spacing/2; x < width; x += spacing) {
+                for(let y = spacing/2; y < height; y += spacing) {
+                    let noiseVal = smoothNoise(x, y, globalTime);
+                    let angle = noiseVal * Math.PI; // Maps noise to rotation direction
+                    let len = 12;
+                    
+                    // Cyberpunk Neon Cyan to Magenta mapping based on the local noise
+                    let tColor = (Math.sin(noiseVal * 1.5) + 1) / 2; // Normalize to 0.0 - 1.0
+                    let r = Math.floor(34 + 183 * tColor);
+                    let g = Math.floor(211 - 141 * tColor);
+                    let b = Math.floor(238 + 1 * tColor);
+                    
+                    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.3)`;
+                    ctx.fillStyle = ctx.strokeStyle;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+                    ctx.stroke();
+                    
+                    // Draw a tiny "data node" dot at the origin of each vector
+                    ctx.beginPath();
+                    ctx.arc(x, y, 1.5, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function drawRing(ctx, width, height) {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Render the animated background data currents
+            drawVectorField(ctx, width, height);
+            
+            let cx = width / 2;
+            let cy = height / 2;
+            let maxRadius = Math.min(cx, cy) - 50; 
+            
+            if (maxRadius < 10) return;
+
+            // Draw Edges
+            for(let i=0; i<N; i++) {
+                let a1 = i * 2 * Math.PI / N;
+                let x1 = cx + maxRadius * Math.cos(a1);
+                let y1 = cy + maxRadius * Math.sin(a1);
+                
+                for(let d=1; d<=R; d++) {
+                    let j = (i + d) % N;
+                    let a2 = j * 2 * Math.PI / N;
+                    let x2 = cx + maxRadius * Math.cos(a2);
+                    let y2 = cy + maxRadius * Math.sin(a2);
+                    
+                    let phaseDiff = Math.abs(thetas[i] - thetas[j]);
+                    if (phaseDiff > Math.PI) phaseDiff = 2*Math.PI - phaseDiff;
+                    let syncDegree = 1 - (phaseDiff / Math.PI);
+                    
+                    // Cyberpunk Neon Cyan to Magenta mapping based on sync
+                    let rColor = Math.floor(217 - syncDegree * 183); 
+                    let gColor = Math.floor(70 + syncDegree * 141);  
+                    let bColor = Math.floor(239);                    
+                    
+                    ctx.strokeStyle = `rgba(${rColor}, ${gColor}, ${bColor}, ${0.1 + 0.6 * Math.pow(syncDegree, 2)})`;
+                    ctx.lineWidth = 1.0 + syncDegree * 2.5;
+                    ctx.shadowBlur = 10 * syncDegree;
+                    ctx.shadowColor = `rgb(${rColor}, ${gColor}, ${bColor})`;
+                    
+                    if (d === 1 || N <= 3) {
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                    } else {
+                        // Curve edges towards the center for high-R topologies
+                        let mx = (x1 + x2)/2;
+                        let my = (y1 + y2)/2;
+                        let pull = 1 - Math.min(1, (d * 1.5) / N); 
+                        let cpx = cx + (mx - cx) * pull;
+                        let cpy = cy + (my - cy) * pull;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.quadraticCurveTo(cpx, cpy, x2, y2);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Draw Nodes
+            for(let i=0; i<N; i++) {
+                let angle = i * 2 * Math.PI / N;
+                let x = cx + maxRadius * Math.cos(angle);
+                let y = cy + maxRadius * Math.sin(angle);
+                
+                let phase = thetas[i];
+                // Map hue to Vaporwave range (180: Cyan -> 330: Pink)
+                let hue = 180 + (phase / (2 * Math.PI)) * 150;
+                
+                // Outer glow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
+                
+                // Node Body
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, 2*Math.PI);
+                ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+                ctx.fill();
+                
+                // Node Border
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Phase Clock Hand / Inner Matrix dot
+                ctx.shadowBlur = 0; // Turn off glow for crisp inner detail
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + 15 * Math.cos(phase), y + 15 * Math.sin(phase));
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'square';
+                ctx.stroke();
+            }
+        }
+
+        function drawPlot(ctx, width, height) {
+            ctx.clearRect(0, 0, width, height);
+            if (history.length === 0) return;
+            
+            let timeScale = width / 200; 
+            
+            // Grid Reference Lines
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.shadowBlur = 0;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, height/2);
+            ctx.lineTo(width, height/2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, height/4);
+            ctx.lineTo(width, height/4);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, 3*height/4);
+            ctx.lineTo(width, 3*height/4);
+            ctx.stroke();
+
+            // Render history lines
+            for(let i=0; i<N; i++) {
+                let hue = 180 + (history[history.length-1][i] / (2*Math.PI)) * 150;
+                ctx.strokeStyle = `hsla(${hue}, 100%, 60%, 0.8)`;
+                ctx.lineWidth = 1.5;
+                
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
+                
+                ctx.beginPath();
+                
+                for(let t=0; t<history.length; t++) {
+                    let x = t * timeScale;
+                    let val = Math.sin(history[t][i]);
+                    let y = height/2 - val * (height/2 - 20);
+                    
+                    if (t === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function loop() {
+            if (isPlaying) {
+                // Calculate two steps per frame for smooth speed
+                for(let step = 0; step < 2; step++) {
+                    updatePhysics();
+                }
+                
+                // Update History
+                history.push([...thetas]);
+                if (history.length > 200) history.shift();
+                
+                let orderParams = calculateOrderParameters();
+                globalTime += 0.015; // Advance the fluid noise field
+                updateAudioDynamics(orderParams.globalR);
+            }
+
+            // Draw
+            const ringCanvas = document.getElementById('ringCanvas');
+            const plotCanvas = document.getElementById('plotCanvas');
+            
+            const ringDim = resizeCanvas(ringCanvas);
+            const plotDim = resizeCanvas(plotCanvas);
+            
+            drawRing(ringCanvas.getContext('2d'), ringDim.width, ringDim.height);
+            drawPlot(plotCanvas.getContext('2d'), plotDim.width, plotDim.height);
+
+            animationId = requestAnimationFrame(loop);
+        }
+
+        // --- Start Application ---
+        bindControls();
+        applyPreset('twisted'); // Default load state
+        loop();
+
+    </script>
+</body>
+</html>
