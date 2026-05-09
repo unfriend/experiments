@@ -38,8 +38,11 @@
   <div class="scanline"></div>
   <div class="w-80 h-full p-6 flex flex-col gap-5 cyber-panel relative z-10 overflow-y-auto">
     <div class="flex items-center justify-between border-b border-[#00f3ff]/30 pb-3">
-      <h1 class="text-3xl font-bold cyber-title text-white tracking-widest">NET_WALKER 3D</h1>
-      <span class="text-xs bg-[#00f3ff]/20 px-2 py-1 rounded border border-[#00f3ff]/50">v1.0.0</span>
+      <div class="flex flex-col items-start gap-1">
+        <h1 class="text-2xl font-bold cyber-title text-white tracking-widest leading-none">NET_WALKER 3D</h1>
+        <span class="text-[10px] bg-[#00f3ff]/20 px-1.5 rounded border border-[#00f3ff]/50 leading-tight">v1.0.0</span>
+      </div>
+      <button id="btn-audio" class="w-8 h-8 flex items-center justify-center border border-[#00f3ff]/50 rounded hover:bg-[#00f3ff]/20 text-[#00f3ff] transition-colors text-sm" title="Toggle Audio">🔇</button>
     </div>
 
     <div class="flex flex-col gap-2">
@@ -170,6 +173,50 @@
       currentCheckingNode: null
     };
 
+    const cyberAudio = {
+      ctx: null, enabled: false, lastStepTime: 0,
+      init() {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+      },
+      toggle() {
+        this.enabled = !this.enabled;
+        if (this.enabled) this.init();
+        return this.enabled;
+      },
+      playTone(freq, type, duration, vol = 0.1) {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+      },
+      playClick() { this.playTone(800, 'square', 0.05, 0.05); },
+      playSelect() { 
+        this.playTone(600, 'sine', 0.1, 0.05); 
+        setTimeout(() => this.playTone(1200, 'sine', 0.15, 0.05), 50);
+      },
+      playStep() {
+        const now = performance.now();
+        if (now - this.lastStepTime < 30) return; // Throttle to prevent audio clipping at 100x speed
+        this.lastStepTime = now;
+        this.playTone(200 + Math.random() * 400, 'sawtooth', 0.03, 0.015);
+      },
+      playSuccess() {
+        [440, 554, 659, 880].forEach((f, i) => setTimeout(() => this.playTone(f, 'square', 0.3, 0.05), i * 100));
+      },
+      playError() {
+        this.playTone(150, 'sawtooth', 0.4, 0.08);
+        setTimeout(() => this.playTone(100, 'sawtooth', 0.5, 0.08), 150);
+      }
+    };
+
     const graph = { nodes: [], edges: [], adjList: new Map(), edgeMap: new Map() };
     
     // Updated to Brighter Colors
@@ -261,23 +308,47 @@
 
     function bindUI() {
       const byId = (id) => document.getElementById(id);
-      byId('btn-dijkstra').onclick = () => { state.algo = 'Dijkstra'; resetSearch(); updateUI(); };
-      byId('btn-astar').onclick = () => { state.algo = 'A*'; resetSearch(); updateUI(); };
-      byId('btn-clear').onclick = () => resetSearch();
-      byId('btn-regen').onclick = () => generateGraph();
+      
+      byId('btn-audio').onclick = (e) => {
+        const isOn = cyberAudio.toggle();
+        e.target.textContent = isOn ? '🔊' : '🔇';
+        if (isOn) cyberAudio.playClick();
+      };
+
+      const setAlgo = (algo) => {
+        if (state.status === 'running') return;
+        if (state.algo === algo) return;
+        cyberAudio.playClick();
+        state.algo = algo;
+        
+        // Auto-restart to instantly show the difference between algorithms if a path was already complete
+        const shouldAutoRestart = (state.status === 'found' || state.status === 'no_path');
+        resetSearch();
+        
+        if (shouldAutoRestart && searchData.startNode && searchData.targetNode) {
+          startSearch();
+        }
+      };
+
+      byId('btn-dijkstra').onclick = () => setAlgo('Dijkstra');
+      byId('btn-astar').onclick = () => setAlgo('A*');
+
+      byId('btn-clear').onclick = () => { cyberAudio.playClick(); resetSearch(); };
+      byId('btn-regen').onclick = () => { cyberAudio.playClick(); generateGraph(); };
 
       byId('btn-action').onclick = () => {
+        cyberAudio.playClick();
         if (['idle', 'paused', 'found', 'no_path'].includes(state.status)) startSearch();
         else pauseSearch();
       };
 
-      byId('range-nodes').oninput = (e) => { state.config.nodesCount = +e.target.value; byId('val-nodes').textContent = e.target.value; };
-      byId('range-clusters').oninput = (e) => { state.config.communities = +e.target.value; byId('val-clusters').textContent = e.target.value; };
-      byId('range-intra').oninput = (e) => { state.config.intraProbability = +e.target.value; byId('val-intra').textContent = (+e.target.value).toFixed(2); };
-      byId('range-inter').oninput = (e) => { state.config.interProbability = +e.target.value; byId('val-inter').textContent = (+e.target.value).toFixed(3); };
-      byId('range-speed').oninput = (e) => { state.config.speed = +e.target.value; updateUI(); };
-      byId('check-loop').onchange = (e) => { state.loopForever = e.target.checked; startLoopTimer(); };
-      byId('check-random').onchange = (e) => { state.randomNodesOnRun = e.target.checked; };
+      byId('range-nodes').oninput = (e) => { cyberAudio.playStep(); state.config.nodesCount = +e.target.value; byId('val-nodes').textContent = e.target.value; };
+      byId('range-clusters').oninput = (e) => { cyberAudio.playStep(); state.config.communities = +e.target.value; byId('val-clusters').textContent = e.target.value; };
+      byId('range-intra').oninput = (e) => { cyberAudio.playStep(); state.config.intraProbability = +e.target.value; byId('val-intra').textContent = (+e.target.value).toFixed(2); };
+      byId('range-inter').oninput = (e) => { cyberAudio.playStep(); state.config.interProbability = +e.target.value; byId('val-inter').textContent = (+e.target.value).toFixed(3); };
+      byId('range-speed').oninput = (e) => { cyberAudio.playStep(); state.config.speed = +e.target.value; updateUI(); };
+      byId('check-loop').onchange = (e) => { cyberAudio.playClick(); state.loopForever = e.target.checked; startLoopTimer(); };
+      byId('check-random').onchange = (e) => { cyberAudio.playClick(); state.randomNodesOnRun = e.target.checked; };
     }
 
     function resize() {
@@ -493,6 +564,7 @@
     function runSearchStep() {
       if (searchData.frontier.isEmpty()) {
         state.status = 'no_path';
+        cyberAudio.playError();
         searchData.currentCheckingNode = null;
         startLoopTimer();
         markVisualsDirty();
@@ -506,6 +578,7 @@
       if (current === searchData.targetNode.id) {
         reconstructPath(current);
         state.status = 'found';
+        cyberAudio.playSuccess();
         searchData.currentCheckingNode = null;
         startLoopTimer();
         markVisualsDirty();
@@ -528,6 +601,7 @@
         }
       }
       state.stats.visited = searchData.visited.size;
+      cyberAudio.playStep();
       markVisualsDirty();
       updateUI();
     }
@@ -588,8 +662,15 @@
 
     function updateUI() {
       const byId = (id) => document.getElementById(id);
-      byId('btn-dijkstra').classList.toggle('active', state.algo === 'Dijkstra');
-      byId('btn-astar').classList.toggle('active', state.algo === 'A*');
+      
+      if (state.algo === 'Dijkstra') {
+        byId('btn-dijkstra').classList.add('active');
+        byId('btn-astar').classList.remove('active');
+      } else {
+        byId('btn-dijkstra').classList.remove('active');
+        byId('btn-astar').classList.add('active');
+      }
+
       byId('stat-visited').textContent = String(state.stats.visited).padStart(4, '0');
       byId('stat-path').textContent = state.stats.pathLength > 0 ? String(state.stats.pathLength) : '----';
       byId('stat-size').textContent = `${graph.nodes.length} / ${graph.edges.length}`;
@@ -628,6 +709,7 @@
       const picked = graph.nodes[nodeId];
       if (e.shiftKey) searchData.startNode = picked;
       else searchData.targetNode = picked;
+      cyberAudio.playSelect();
       resetSearch(false);
       markVisualsDirty();
       updateUI();
