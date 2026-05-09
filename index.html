@@ -5,258 +5,326 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Windows 95 Directory</title>
+    <title>Holo-Directory v2.0</title>
     <style>
-        /* --- Basic Reset & Win95 Styling --- */
+        /* --- Futuristic Reset & Variables --- */
+        :root {
+            --bg-dark: #090a0f;
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff007f;
+            --glass-bg: rgba(10, 12, 20, 0.7);
+            --glass-border: rgba(0, 243, 255, 0.2);
+            --glass-blur: blur(16px);
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: "MS Sans Serif", "Microsoft Sans Serif", Arial, sans-serif;
+            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
             user-select: none;
         }
 
         body, html {
             height: 100%;
             overflow: hidden;
-            background-color: #008080;
+            background-color: var(--bg-dark);
+            color: #e0eaff;
+        }
+
+        /* Animated Grid Background */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 200%; height: 200%;
+            background-image:
+                linear-gradient(rgba(0, 243, 255, 0.07) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.07) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: gridMove 20s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(40px) translateZ(-200px); }
         }
 
         /* --- Desktop Area --- */
         #desktop {
             position: relative;
             width: 100%;
-            height: calc(100% - 30px);
-            padding: 10px;
+            height: calc(100% - 70px);
+            padding: 30px;
             display: flex;
             flex-direction: column;
             flex-wrap: wrap;
             align-content: flex-start;
-            gap: 15px;
+            gap: 25px;
         }
 
-        /* --- Desktop Icons --- */
+        /* --- Holographic Icons --- */
         .desktop-icon {
-            width: 70px;
+            width: 80px;
             display: flex;
             flex-direction: column;
             align-items: center;
             cursor: pointer;
-            text-align: center;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .desktop-icon:hover {
+            transform: translateY(-5px) scale(1.05);
         }
 
         .icon-img {
-            width: 32px;
-            height: 32px;
-            background-color: #fff;
-            border: 1px solid #000;
-            position: relative;
-            box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
-            margin-bottom: 4px;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(255,0,127,0.1));
+            border: 1px solid var(--neon-cyan);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s;
         }
 
-        .icon-img::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            border-width: 0 10px 10px 0;
-            border-style: solid;
-            border-color: #008080 #008080 #ccc #ccc;
+        .icon-img::before {
+            content: '/>';
+            color: var(--neon-cyan);
+            font-weight: 900;
+            font-family: monospace;
+            font-size: 18px;
+            text-shadow: 0 0 5px var(--neon-cyan);
+        }
+
+        .desktop-icon:hover .icon-img {
+            box-shadow: 0 0 25px var(--neon-cyan);
+            background: linear-gradient(135deg, rgba(0,243,255,0.3), rgba(255,0,127,0.3));
         }
 
         .icon-text {
-            color: white;
-            font-size: 11px;
-            padding: 2px;
+            font-size: 12px;
+            font-weight: 500;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            text-align: center;
             word-wrap: break-word;
             max-width: 100%;
+            letter-spacing: 0.5px;
         }
 
-        .desktop-icon:active .icon-text {
-            background-color: #000080;
-            outline: 1px dotted #fff;
-        }
-
-        /* --- Taskbar --- */
+        /* --- Floating Dock (Taskbar) --- */
         #taskbar {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 30px;
-            background-color: #c0c0c0;
-            border-top: 1px solid #fff;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            height: 55px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
             display: flex;
             align-items: center;
-            padding: 2px;
-            box-shadow: inset 0 1px #dfdfdf;
+            padding: 0 15px;
+            gap: 12px;
             z-index: 9999;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,243,255,0.05);
         }
 
         #start-btn {
-            font-weight: bold;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+            color: #000;
+            font-weight: 800;
+            padding: 8px 18px;
+            border-radius: 20px;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            padding: 2px 5px;
-            height: 100%;
-            border: 2px solid;
-            border-color: #fff #808080 #808080 #fff;
-            background: #c0c0c0;
-            cursor: pointer;
-            margin-right: 5px;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+            transition: filter 0.2s, transform 0.1s;
         }
 
         #start-btn:active {
-            border-color: #808080 #fff #fff #808080;
-            padding: 3px 4px 1px 6px;
+            transform: scale(0.95);
         }
 
-        .win-logo {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            background: conic-gradient(red 90deg, green 90deg 180deg, blue 180deg 270deg, yellow 270deg);
-            margin-right: 5px;
+        #start-btn:hover {
+            filter: brightness(1.2);
         }
 
         #taskbar-windows {
             flex-grow: 1;
             display: flex;
-            gap: 2px;
-            overflow: hidden;
+            gap: 8px;
+            max-width: 600px;
+            overflow-x: auto;
         }
 
+        /* Hide scrollbar for taskbar items */
+        #taskbar-windows::-webkit-scrollbar { display: none; }
+
         .taskbar-item {
-            border: 2px solid;
-            border-color: #fff #808080 #808080 #fff;
-            background: #c0c0c0;
-            padding: 2px 5px;
-            font-size: 11px;
-            min-width: 100px;
-            max-width: 150px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 8px 16px;
+            border-radius: 15px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            max-width: 140px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            cursor: pointer;
+            color: #aaa;
         }
 
         .taskbar-item.active {
-            border-color: #808080 #fff #fff #808080;
-            background: #dfdfdf;
-            background-image: repeating-linear-gradient(45deg, transparent, transparent 2px, #c0c0c0 2px, #c0c0c0 4px);
+            background: rgba(0, 243, 255, 0.15);
+            border-color: var(--neon-cyan);
+            color: #fff;
+            box-shadow: 0 0 12px rgba(0,243,255,0.2);
         }
 
         #clock {
-            border: 2px solid;
-            border-color: #808080 #fff #fff #808080;
-            padding: 2px 10px;
-            font-size: 11px;
-            height: 100%;
-            display: flex;
-            align-items: center;
-        }
-
-        /* --- Start Menu --- */
-        #start-menu {
-            position: absolute;
-            bottom: 30px;
-            left: 0;
-            width: 200px;
-            background-color: #c0c0c0;
-            border: 2px solid;
-            border-color: #fff #808080 #808080 #fff;
-            display: none;
-            flex-direction: row;
-            z-index: 10000;
-        }
-
-        .start-sidebar {
-            width: 25px;
-            background: #000080;
-            color: white;
-            writing-mode: vertical-lr;
-            transform: rotate(180deg);
-            padding: 5px;
+            font-family: 'Courier New', Courier, monospace;
             font-weight: bold;
             font-size: 14px;
-            display: flex;
-            align-items: flex-end;
+            color: var(--neon-cyan);
+            padding-left: 12px;
+            border-left: 1px solid rgba(255,255,255,0.2);
         }
 
-        .start-items {
-            flex-grow: 1;
-            padding: 2px;
+        /* --- Glassmorphism Start Menu --- */
+        #start-menu {
+            position: absolute;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 260px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            display: none;
+            flex-direction: column;
+            padding: 12px;
+            z-index: 10000;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8), inset 0 0 15px rgba(255,0,127,0.1);
         }
 
         .start-item {
-            padding: 8px 10px;
-            font-size: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
+            transition: 0.2s;
+            color: #ddd;
+            margin-bottom: 4px;
         }
 
         .start-item:hover {
-            background-color: #000080;
-            color: white;
+            background: rgba(0, 243, 255, 0.2);
+            color: #fff;
+            padding-left: 22px;
         }
 
-        /* --- Windows --- */
+        hr {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin: 8px 0;
+        }
+
+        /* --- Cyberpunk Windows --- */
         .window {
             position: absolute;
-            width: 400px;
-            height: 300px;
-            min-width: 200px;
-            min-height: 150px;
-            background: #c0c0c0;
-            border: 2px solid;
-            border-color: #fff #000 #000 #fff;
-            box-shadow: inset 1px 1px #dfdfdf, inset -1px -1px #808080;
+            width: 600px;
+            height: 400px;
+            min-width: 300px;
+            min-height: 200px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.05);
+            transition: box-shadow 0.3s, border-color 0.3s;
+        }
+
+        .window:focus-within, .window:active {
+            box-shadow: 0 20px 40px rgba(0,0,0,0.7), 0 0 20px rgba(0,243,255,0.2);
+            border-color: var(--neon-cyan);
         }
 
         .title-bar {
-            background: #000080;
-            color: white;
-            padding: 2px 3px;
+            background: rgba(0,0,0,0.4);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-weight: bold;
-            font-size: 12px;
-            cursor: default;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
 
         .title-bar.inactive {
-            background: #808080;
+            opacity: 0.6;
         }
 
-        .close-btn {
-            background: #c0c0c0;
-            border: 2px solid;
-            border-color: #fff #808080 #808080 #fff;
-            font-weight: bold;
-            font-size: 10px;
-            width: 16px;
-            height: 14px;
+        .title-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .ctrl-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: none;
             display: flex;
             justify-content: center;
             align-items: center;
             cursor: pointer;
-            color: black;
+            font-size: 13px;
+            font-weight: bold;
+            text-decoration: none;
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+            transition: 0.2s;
         }
 
-        .close-btn:active {
-            border-color: #808080 #fff #fff #808080;
+        .ctrl-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .popout-btn:hover {
+            background: rgba(0, 243, 255, 0.4);
+            box-shadow: 0 0 10px var(--neon-cyan);
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 0, 127, 0.6);
+            box-shadow: 0 0 10px var(--neon-pink);
         }
 
         .window-content {
             flex-grow: 1;
-            background: white;
-            border: 2px solid;
-            border-color: #808080 #fff #fff #808080;
-            margin: 2px;
             position: relative;
+            background: #fff; /* Solid white so simple HTML files are readable */
         }
 
         iframe {
@@ -264,9 +332,9 @@
             height: 100%;
             border: none;
             display: block;
+            background: #fff;
         }
 
-        /* Prevent iframe from stealing mouse events during drag/resize */
         .window.is-dragging iframe, 
         .window.is-resizing iframe {
             pointer-events: none;
@@ -275,16 +343,21 @@
         /* --- Resizing Grip --- */
         .resize-handle {
             position: absolute;
-            right: 2px;
-            bottom: 2px;
-            width: 12px;
-            height: 12px;
+            right: 0;
+            bottom: 0;
+            width: 25px;
+            height: 25px;
             cursor: se-resize;
             z-index: 10;
-            /* Classic Win95 grip texture */
-            background-image: 
-                linear-gradient(135deg, transparent 40%, #fff 40%, #fff 50%, #808080 50%, #808080 60%, transparent 60%),
-                linear-gradient(135deg, transparent 70%, #fff 70%, #fff 80%, #808080 80%, #808080 90%, transparent 90%);
+            background: linear-gradient(135deg, transparent 50%, rgba(0,243,255,0.4) 50%);
+            border-bottom-right-radius: 12px;
+            opacity: 0.5;
+            transition: 0.2s;
+        }
+
+        .resize-handle:hover {
+            opacity: 1;
+            background: linear-gradient(135deg, transparent 50%, var(--neon-cyan) 50%);
         }
     </style>
 </head>
@@ -314,19 +387,16 @@
 
     <!-- Start Menu -->
     <div id="start-menu">
-        <div class="start-sidebar">Windows 95</div>
-        <div class="start-items">
-            <div class="start-item" onclick="alert('System operating normally.')">Programs</div>
-            <div class="start-item" onclick="alert('No documents found.')">Documents</div>
-            <hr>
-            <div class="start-item" onclick="toggleStartMenu()">Shut Down...</div>
-        </div>
+        <div class="start-item" onclick="alert('System operating normally.')">System Status</div>
+        <div class="start-item" onclick="alert('No archives detected.')">Data Archives</div>
+        <hr>
+        <div class="start-item" onclick="toggleStartMenu()" style="color: var(--neon-pink);">Disconnect...</div>
     </div>
 
-    <!-- Taskbar -->
+    <!-- Taskbar / Dock -->
     <div id="taskbar">
         <div id="start-btn" onclick="toggleStartMenu()">
-            <span class="win-logo"></span> Start
+            SYS
         </div>
         <div id="taskbar-windows"></div>
         <div id="clock">00:00 AM</div>
@@ -374,15 +444,18 @@
             win.id = winId;
             win.style.zIndex = ++zIndexCounter;
             
-            const offset = (openWindowsCount % 10) * 20;
-            win.style.top = (50 + offset) + 'px';
-            win.style.left = (50 + offset) + 'px';
+            const offset = (openWindowsCount % 10) * 30;
+            win.style.top = (80 + offset) + 'px';
+            win.style.left = (80 + offset) + 'px';
 
-            // Notice the new resize-handle div inside the window
+            // New Title Bar includes an <a> tag targeting "_blank"
             win.innerHTML = `
                 <div class="title-bar" id="${winId}-title">
                     <span>${title}</span>
-                    <button class="close-btn" onclick="closeWindow('${winId}')">X</button>
+                    <div class="title-controls">
+                        <a href="${url}" target="_blank" class="ctrl-btn popout-btn" title="Open in new tab">↗</a>
+                        <button class="ctrl-btn close-btn" title="Close window" onclick="closeWindow('${winId}')">✕</button>
+                    </div>
                 </div>
                 <div class="window-content">
                     <iframe src="${url}"></iframe>
@@ -395,7 +468,6 @@
             document.getElementById('desktop').appendChild(win);
             createTaskbarItem(winId, title);
             
-            // Apply Draggable and Resizable logic
             makeDraggable(win, document.getElementById(`${winId}-title`));
             makeResizable(win, document.getElementById(`${winId}-resize`));
         }
@@ -437,13 +509,15 @@
             titleBar.onmousedown = dragMouseDown;
 
             function dragMouseDown(e) {
+                // Safeguard: Don't drag if clicking the control buttons (close/popout)
+                if (e.target.closest('.ctrl-btn')) return;
+
                 e.preventDefault();
                 pos3 = e.clientX;
                 pos4 = e.clientY;
                 document.onmouseup = closeDragElement;
                 document.onmousemove = elementDrag;
                 bringToFront(elmnt.id);
-                // Adds class to disable iframe pointer events so it doesn't swallow mouse events
                 elmnt.classList.add('is-dragging'); 
             }
 
@@ -475,7 +549,6 @@
                 startWidth = parseInt(document.defaultView.getComputedStyle(elmnt).width, 10);
                 startHeight = parseInt(document.defaultView.getComputedStyle(elmnt).height, 10);
                 
-                // Add event listeners to document so mouse doesn't lose the handle if moved quickly
                 document.documentElement.addEventListener('mousemove', doDrag, false);
                 document.documentElement.addEventListener('mouseup', stopDrag, false);
                 
