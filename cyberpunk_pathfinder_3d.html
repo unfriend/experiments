@@ -87,7 +87,7 @@
         <input id="range-inter" type="range" min="0.001" max="0.08" step="0.001" value="0.015" class="cyber-slider" />
       </div>
       <div class="flex flex-col gap-1">
-        <div class="flex justify-between text-xs text-[#fdfd96]"><span>OVERCLOCK_SPEED</span><span id="val-speed">SLOW (22)</span></div>
+        <div class="flex justify-between text-xs text-[#fdfd96]"><span>OVERCLOCK_SPEED</span><span id="val-speed">--</span></div>
         <input id="range-speed" type="range" min="1" max="100" value="28" class="cyber-slider" />
       </div>
       <label class="flex items-center gap-2 text-xs cursor-pointer mt-1">
@@ -178,6 +178,7 @@
     };
     const GRAPH_SHAPE = { clusterNodeRadiusMin: 4, clusterNodeRadiusRange: 22 };
     const SEARCH_TIMING = { slowStepMultiplier: 0.028, slowStepBaseSeconds: 0.012 };
+    const SPEED_MODE = { slowFastThreshold: 50, fastModeDisplayOffset: 49 };
 
     const canvas = document.getElementById('three-canvas');
     const root = document.getElementById('canvas-root');
@@ -548,7 +549,9 @@
       byId('stat-visited').textContent = String(state.stats.visited).padStart(4, '0');
       byId('stat-path').textContent = state.stats.pathLength > 0 ? String(state.stats.pathLength) : '----';
       byId('stat-size').textContent = `${graph.nodes.length} / ${graph.edges.length}`;
-      byId('val-speed').textContent = state.config.speed < 50 ? `SLOW (${50 - state.config.speed})` : `${state.config.speed - 49}x`;
+      byId('val-speed').textContent = state.config.speed < SPEED_MODE.slowFastThreshold
+        ? `SLOW (${SPEED_MODE.slowFastThreshold - state.config.speed})`
+        : `${state.config.speed - SPEED_MODE.fastModeDisplayOffset}x`;
 
       const status = byId('sys-status');
       status.textContent = `[${state.status.toUpperCase()}]`;
@@ -593,15 +596,15 @@
 
       if (state.status === 'running') {
         const speed = state.config.speed;
-        if (speed < 50) {
-          const interval = ((50 - speed) * SEARCH_TIMING.slowStepMultiplier) + SEARCH_TIMING.slowStepBaseSeconds;
+        if (speed < SPEED_MODE.slowFastThreshold) {
+          const interval = ((SPEED_MODE.slowFastThreshold - speed) * SEARCH_TIMING.slowStepMultiplier) + SEARCH_TIMING.slowStepBaseSeconds;
           searchAccumulator += dt;
           if (searchAccumulator >= interval) {
             searchAccumulator = 0;
             runSearchStep();
           }
         } else {
-          const steps = Math.max(1, speed - 49);
+          const steps = Math.max(1, speed - SPEED_MODE.fastModeDisplayOffset);
           for (let i = 0; i < steps && state.status === 'running'; i++) runSearchStep();
         }
       }
