@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NET_WALKER: Cyberpunk Pathfinder</title>
   
-  <!-- Tailwind CSS for styling -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- React and ReactDOM -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- React and ReactDOM (via CDNJS for better GitHub Pages compatibility) -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   
-  <!-- Babel to compile JSX in the browser -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Babel -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
 
   <style>
     body { margin: 0; overflow: hidden; background-color: #020205; }
@@ -44,7 +44,9 @@
         while (index > 0) {
           const parentIndex = Math.floor((index - 1) / 2);
           if (this.heap[parentIndex].priority <= this.heap[index].priority) break;
-          [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
+          const temp = this.heap[parentIndex];
+          this.heap[parentIndex] = this.heap[index];
+          this.heap[index] = temp;
           index = parentIndex;
         }
       }
@@ -62,7 +64,9 @@
             smallest = rightChild;
           }
           if (smallest === index) break;
-          [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
+          const temp = this.heap[index];
+          this.heap[index] = this.heap[smallest];
+          this.heap[smallest] = temp;
           index = smallest;
         }
       }
@@ -657,6 +661,14 @@
          return () => cancelAnimationFrame(glowFrame);
       }, [draw, status]);
 
+      // STYLES EXTRACTED TO AVOID JEKYLL TEMPLATE ERRORS
+      const buttonDynamicStyle = { boxShadow: status === 'idle' ? '0 0 10px rgba(0, 243, 255, 0.5)' : 'none' };
+      const sliderGlowStyle = { boxShadow: '0 0 5px rgba(253, 253, 150, 0.5)' };
+      const crtOverlayStyle = {
+         background: 'radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%)',
+         boxShadow: 'inset 0 0 100px rgba(0,0,0,0.9)'
+      };
+
       return (
         <div className="flex h-screen w-full bg-[#020205] text-[#00f3ff] cyberpunk-font overflow-hidden relative selection:bg-[#ff003c] selection:text-white">
           <style>{styles}</style>
@@ -691,7 +703,7 @@
                <span className="text-sm text-gray-400 uppercase tracking-widest">Execution</span>
                 {status === 'idle' || status === 'paused' || status === 'found' || status === 'no_path' ? (
                     <button onClick={startSearch} className="w-full py-3 cyber-button text-lg font-bold tracking-widest"
-                            style={{boxShadow: status==='idle' ? '0 0 10px rgba(0, 243, 255, 0.5)' : 'none'}}>
+                            style={buttonDynamicStyle}>
                       {status === 'paused' ? 'RESUME_SYS()' : status==='found' || status==='no_path' ? 'RESTART_SYS()' : 'INIT_SEARCH()'}
                     </button>
                 ) : (
@@ -739,7 +751,7 @@
                   <span className="text-white">{config.nodesCount}</span>
                 </div>
                 <input type="range" min="50" max="800" step="10" value={config.nodesCount}
-                       onChange={(e) => setConfig({...config, nodesCount: parseInt(e.target.value)})}
+                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {nodesCount: parseInt(e.target.value)}))}
                        disabled={status === 'running'} className="cyber-slider" />
               </div>
 
@@ -749,7 +761,7 @@
                   <span className="text-white">{config.communities}</span>
                 </div>
                 <input type="range" min="1" max="10" value={config.communities}
-                       onChange={(e) => setConfig({...config, communities: parseInt(e.target.value)})}
+                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {communities: parseInt(e.target.value)}))}
                        disabled={status === 'running'} className="cyber-slider" />
               </div>
 
@@ -759,7 +771,7 @@
                   <span className="text-white">{config.intraProbability.toFixed(2)}</span>
                 </div>
                 <input type="range" min="0.05" max="0.5" step="0.01" value={config.intraProbability}
-                       onChange={(e) => setConfig({...config, intraProbability: parseFloat(e.target.value)})}
+                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {intraProbability: parseFloat(e.target.value)}))}
                        disabled={status === 'running'} className="cyber-slider" />
               </div>
 
@@ -769,7 +781,7 @@
                   <span className="text-white">{config.interProbability.toFixed(3)}</span>
                 </div>
                 <input type="range" min="0" max="0.1" step="0.005" value={config.interProbability}
-                       onChange={(e) => setConfig({...config, interProbability: parseFloat(e.target.value)})}
+                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {interProbability: parseFloat(e.target.value)}))}
                        disabled={status === 'running'} className="cyber-slider" />
               </div>
 
@@ -779,8 +791,8 @@
                   <span>{config.speed < 50 ? `SLOW (${50 - config.speed})` : `${config.speed - 49}x`}</span>
                 </div>
                 <input type="range" min="1" max="100" value={config.speed}
-                       onChange={(e) => setConfig({...config, speed: parseInt(e.target.value)})}
-                       className="cyber-slider" style={{boxShadow: '0 0 5px rgba(253, 253, 150, 0.5)'}}/>
+                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {speed: parseInt(e.target.value)}))}
+                       className="cyber-slider" style={sliderGlowStyle}/>
               </div>
 
               <div className="flex flex-col gap-2 mt-2">
@@ -813,11 +825,7 @@
               className="absolute inset-0 w-full h-full"
             />
             {/* CRT Overlay Effect */}
-            <div className="absolute inset-0 pointer-events-none" 
-                 style={{
-                     background: 'radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%)',
-                     boxShadow: 'inset 0 0 100px rgba(0,0,0,0.9)'
-                 }}>
+            <div className="absolute inset-0 pointer-events-none" style={crtOverlayStyle}>
             </div>
           </div>
         </div>
