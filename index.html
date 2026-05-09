@@ -273,3 +273,172 @@
         
         {% for page in site.html_pages %}
             {% if page.url != "/" %}
+            <div class="desktop-icon" ondblclick="openWindow('{{ site.baseurl }}{{ page.url }}', '{{ page.name }}')">
+                <div class="icon-img"></div>
+                <div class="icon-text">{{ page.name }}</div>
+            </div>
+            {% endif %}
+        {% endfor %}
+
+        {% for file in site.static_files %}
+            {% if file.extname == '.html' %}
+            <div class="desktop-icon" ondblclick="openWindow('{{ site.baseurl }}{{ file.path }}', '{{ file.name }}')">
+                <div class="icon-img"></div>
+                <div class="icon-text">{{ file.name }}</div>
+            </div>
+            {% endif %}
+        {% endfor %}
+
+    </div>
+
+    <div id="start-menu">
+        <div class="start-sidebar">Windows 95</div>
+        <div class="start-items">
+            <div class="start-item" onclick="alert('System operating normally.')">Programs</div>
+            <div class="start-item" onclick="alert('No documents found.')">Documents</div>
+            <hr>
+            <div class="start-item" onclick="toggleStartMenu()">Shut Down...</div>
+        </div>
+    </div>
+
+    <div id="taskbar">
+        <div id="start-btn" onclick="toggleStartMenu()">
+            <span class="win-logo"></span> Start
+        </div>
+        <div id="taskbar-windows">
+            </div>
+        <div id="clock">00:00 AM</div>
+    </div>
+
+    <script>
+        let zIndexCounter = 100;
+        let openWindowsCount = 0;
+
+        // --- Clock Functionality ---
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; 
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            document.getElementById('clock').innerText = hours + ':' + minutes + ' ' + ampm;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // --- Start Menu Toggle ---
+        function toggleStartMenu() {
+            const menu = document.getElementById('start-menu');
+            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        // Close start menu if clicked outside
+        document.addEventListener('click', function(event) {
+            const startBtn = document.getElementById('start-btn');
+            const startMenu = document.getElementById('start-menu');
+            if (!startBtn.contains(event.target) && !startMenu.contains(event.target)) {
+                startMenu.style.display = 'none';
+            }
+        });
+
+        // --- Window Manager ---
+        function openWindow(url, title) {
+            openWindowsCount++;
+            const winId = 'win-' + Date.now();
+            
+            // Create Window Element
+            const win = document.createElement('div');
+            win.className = 'window';
+            win.id = winId;
+            win.style.zIndex = ++zIndexCounter;
+            
+            // Stagger spawn locations slightly
+            const offset = (openWindowsCount % 10) * 20;
+            win.style.top = (50 + offset) + 'px';
+            win.style.left = (50 + offset) + 'px';
+
+            win.innerHTML = `
+                <div class="title-bar" id="${winId}-title">
+                    <span>${title}</span>
+                    <button class="close-btn" onclick="closeWindow('${winId}')">X</button>
+                </div>
+                <div class="window-content">
+                    <iframe src="${url}"></iframe>
+                </div>
+            `;
+
+            // Bring to front on click
+            win.addEventListener('mousedown', () => bringToFront(winId));
+            
+            document.getElementById('desktop').appendChild(win);
+            createTaskbarItem(winId, title);
+            makeDraggable(win, document.getElementById(`${winId}-title`));
+        }
+
+        function closeWindow(winId) {
+            document.getElementById(winId).remove();
+            document.getElementById('task-' + winId).remove();
+            openWindowsCount--;
+        }
+
+        function bringToFront(winId) {
+            const win = document.getElementById(winId);
+            win.style.zIndex = ++zIndexCounter;
+            
+            // Update title bar colors
+            document.querySelectorAll('.title-bar').forEach(tb => tb.classList.add('inactive'));
+            document.getElementById(winId + '-title').classList.remove('inactive');
+
+            // Update taskbar button styling
+            document.querySelectorAll('.taskbar-item').forEach(tb => tb.classList.remove('active'));
+            const taskBtn = document.getElementById('task-' + winId);
+            if(taskBtn) taskBtn.classList.add('active');
+        }
+
+        function createTaskbarItem(winId, title) {
+            const taskbarTasks = document.getElementById('taskbar-windows');
+            const taskBtn = document.createElement('div');
+            taskBtn.className = 'taskbar-item active';
+            taskBtn.id = 'task-' + winId;
+            taskBtn.innerText = title;
+            taskBtn.onclick = () => bringToFront(winId);
+            
+            // Deselect others
+            document.querySelectorAll('.taskbar-item').forEach(tb => tb.classList.remove('active'));
+            taskbarTasks.appendChild(taskBtn);
+        }
+
+        // --- Dragging Logic ---
+        function makeDraggable(elmnt, titleBar) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            titleBar.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+                bringToFront(elmnt.id);
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+    </script>
+</body>
+</html>
