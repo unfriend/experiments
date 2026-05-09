@@ -171,10 +171,13 @@
     };
 
     const graph = { nodes: [], edges: [], adjList: new Map(), edgeMap: new Map() };
+    
+    // Updated to Brighter Colors
     const COLORS = {
-      bg: 0x050510, grid: 0x0a1a24, nodeDefault: 0x4f8ecf, edgeDefault: 0x0c3a52,
-      start: 0x00f3ff, target: 0xff003c, checking: 0xfdfd96, visited: 0x9c27b0,
-      pathNode: 0x00ffaa, pathEdge: 0x00ffaa, treeEdge: 0x673ab7
+      bg: 0x050510, grid: 0x0a1a24, 
+      nodeDefault: 0x64b5f6, edgeDefault: 0x2277aa,
+      start: 0x00ffff, target: 0xff3366, checking: 0xffffaa, visited: 0xd500f9,
+      pathNode: 0x33ffbb, pathEdge: 0x33ffbb, treeEdge: 0x9d4edd
     };
     const GRAPH_SHAPE = {
       clusterNodeRadiusMin: 4,
@@ -191,7 +194,7 @@
       nodeSphereRadius: 0.8,
       nodeSphereWidthSegments: 10,
       nodeSphereHeightSegments: 10,
-      edgeDefaultOpacity: 0.35
+      edgeDefaultOpacity: 0.85 // Increased significantly for bright edges
     };
 
     const canvas = document.getElementById('three-canvas');
@@ -218,7 +221,8 @@
     function init() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(COLORS.bg);
-      scene.fog = new THREE.FogExp2(COLORS.bg, 0.01);
+      // Removed the fog completely so colors no longer fade out in the distance
+      // scene.fog = new THREE.FogExp2(COLORS.bg, 0.01); 
 
       camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1200);
       camera.position.set(72, 60, 72);
@@ -226,14 +230,16 @@
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER_TUNING.maxPixelRatio));
       renderer.toneMapping = THREE.ReinhardToneMapping;
+      renderer.toneMappingExposure = 2.8; // Massively boosted overall brightness
 
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.autoRotate = true;
       controls.autoRotateSpeed = 0.2;
 
-      scene.add(new THREE.AmbientLight(0x446688, 0.6));
-      const keyLight = new THREE.PointLight(0x00f3ff, 2.0, 800);
+      // Pure white, intense global lighting so distance doesn't matter
+      scene.add(new THREE.AmbientLight(0xffffff, 3.0));
+      const keyLight = new THREE.PointLight(0x00f3ff, 3.0, 800);
       keyLight.position.set(120, 120, 120);
       scene.add(keyLight);
 
@@ -332,8 +338,9 @@
           center.z + r * Math.sin(phi) * Math.sin(theta)
         );
         const mat = new THREE.MeshStandardMaterial({
-          color: new THREE.Color().setHSL(clusterHue(cluster, c), 0.8, 0.55),
-          emissive: 0x04111c, roughness: 0.35, metalness: 0.55
+          color: new THREE.Color().setHSL(clusterHue(cluster, c), 1.0, 0.75), // Extremely bright baseline
+          emissive: new THREE.Color().setHSL(clusterHue(cluster, c), 1.0, 0.5), // Strong emissive glow
+          roughness: 0.1, metalness: 0.1
         });
         const mesh = new THREE.Mesh(sphere, mat);
         mesh.position.copy(pos);
@@ -369,7 +376,7 @@
       const p1 = graph.nodes[a].pos;
       const p2 = graph.nodes[b].pos;
       const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-      const mat = new THREE.LineBasicMaterial({ color: COLORS.edgeDefault, transparent: true, opacity: 0.5 });
+      const mat = new THREE.LineBasicMaterial({ color: COLORS.edgeDefault, transparent: true, opacity: RENDER_TUNING.edgeDefaultOpacity });
       const line = new THREE.Line(geo, mat);
       edgesGroup.add(line);
       const edge = { source: a, target: b, weight, line };
@@ -539,10 +546,10 @@
         const k = edgeKey(edge.source, edge.target);
         if (pathEdgeSet.has(k)) {
           edge.line.material.color.setHex(COLORS.pathEdge);
-          edge.line.material.opacity = 0.95;
+          edge.line.material.opacity = 1.0;
         } else if (treeEdgeSet.has(k)) {
           edge.line.material.color.setHex(COLORS.treeEdge);
-          edge.line.material.opacity = 0.45;
+          edge.line.material.opacity = 0.7; // Brighter tree edges
         } else {
           edge.line.material.color.setHex(COLORS.edgeDefault);
           edge.line.material.opacity = RENDER_TUNING.edgeDefaultOpacity;
@@ -553,19 +560,21 @@
         let color = node.mesh.material.color;
         let emissive = node.mesh.material.emissive;
         let scale = 1;
+        
+        // Brighter node states with adjusted emissive colors
         if (searchData.startNode && node.id === searchData.startNode.id) {
-          color.setHex(COLORS.start); emissive.setHex(0x10425f); scale = 1.8;
+          color.setHex(COLORS.start); emissive.setHex(0x00aaff); scale = 1.8;
         } else if (searchData.targetNode && node.id === searchData.targetNode.id) {
-          color.setHex(COLORS.target); emissive.setHex(0x40101d); scale = 1.8;
+          color.setHex(COLORS.target); emissive.setHex(0xff0055); scale = 1.8;
         } else if (pathSet.has(node.id)) {
-          color.setHex(COLORS.pathNode); emissive.setHex(0x0a3b31); scale = 1.35;
+          color.setHex(COLORS.pathNode); emissive.setHex(0x00ff88); scale = 1.35;
         } else if (searchData.currentCheckingNode === node.id) {
-          color.setHex(COLORS.checking); emissive.setHex(0x302c14); scale = 1.55;
+          color.setHex(COLORS.checking); emissive.setHex(0xffff00); scale = 1.55;
         } else if (searchData.visited.has(node.id)) {
-          color.setHex(COLORS.visited); emissive.setHex(0x1d0b2a); scale = 1.15;
+          color.setHex(COLORS.visited); emissive.setHex(0xaa00ff); scale = 1.15;
         } else {
-          color.setHSL(clusterHue(node.cluster, state.config.communities), 0.8, 0.55);
-          emissive.setHex(0x04111c);
+          color.setHSL(clusterHue(node.cluster, state.config.communities), 1.0, 0.75);
+          emissive.setHSL(clusterHue(node.cluster, state.config.communities), 1.0, 0.5);
         }
         node.mesh.scale.setScalar(scale);
       }
