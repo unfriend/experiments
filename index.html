@@ -3,43 +3,257 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My HTML Directory</title>
+    <title>A E S T H E T I C • D I R E C T O R Y</title>
     <style>
+        /* --- Basic Reset --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* --- Windows 95 Font --- */
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            max-width: 800px;
-            margin: 2rem auto;
-            padding: 0 1rem;
-            line-height: 1.5;
+            font-family: "MS Sans Serif", "Microsoft Sans Serif", Arial, sans-serif;
+            background-color: #008080; /* Classic Chicago Teal */
+            overflow: hidden; /* Needed for background effect */
+            height: 100vh;
         }
-        .file-list {
-            background: #f4f4f5;
-            padding: 1.5rem;
-            border-radius: 8px;
+
+        /* --- Vaporwave/Retrowave Grid Background --- */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(0deg, rgba(255, 20, 147, 0.2) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 20, 147, 0.2) 1px, transparent 1px);
+            background-size: 50px 50px;
+            background-position: center bottom;
+            transform: perspective(100vh) rotateX(60deg) translateY(100px);
+            transform-origin: center bottom;
+            z-index: -2;
+            filter: blur(1px);
         }
+
+        /* --- Vaporwave Sunset Background Gradient --- */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, #101030 0%, #ff1493 60%, #ffd700 100%);
+            z-index: -3;
+        }
+
+        /* --- Main App Window (Windows 95 Structure) --- */
+        .window {
+            position: relative;
+            background: #c0c0c0; /* Win95 Grey */
+            border: 1px solid #000;
+            box-shadow: 
+                inset 1px 1px #dfdfdf, 
+                inset -1px -1px #0a0a0a, 
+                inset 2px 2px #fff, 
+                inset -2px -2px #808080;
+            width: 90%;
+            max-width: 700px;
+            margin: 100px auto;
+            display: flex;
+            flex-direction: column;
+            padding: 2px;
+        }
+
+        /* --- Window Title Bar --- */
+        .title-bar {
+            /* Vaporwave Gradient Title Bar */
+            background: linear-gradient(to right, #FF1493, #00FFFF); 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 5px 3px 3px;
+        }
+
+        .title-bar-text {
+            color: white;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        /* Standard Win95 X Button */
+        .title-bar-controls button {
+            width: 16px;
+            height: 14px;
+            border: 1px solid #000;
+            background: #c0c0c0;
+            box-shadow: inset 1px 1px #fff, inset -1px -1px #808080;
+            font-size: 9px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .title-bar-controls button:active {
+            box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
+            padding: 2px 0 0 2px;
+        }
+
+        /* --- Inner Window Body --- */
+        .window-body {
+            background-color: #000; /* Dark inner view */
+            border: 1px solid #0a0a0a;
+            box-shadow: inset 1px 1px #000, inset -1px -1px #dfdfdf, inset 2px 2px #808080, inset -2px -2px #fff;
+            margin: 10px;
+            padding: 20px;
+            color: #fff;
+            overflow-y: auto;
+            max-height: 70vh;
+        }
+
+        /* --- Header Styling (Retrowave Neon) --- */
+        h1 {
+            font-size: 1.5rem;
+            color: #fff;
+            text-shadow: 
+                0 0 5px #ff00de, 
+                0 0 10px #ff00de, 
+                0 0 20px #ff00de;
+            text-align: center;
+            margin-bottom: 2px;
+            letter-spacing: 5px;
+        }
+
+        h1::before { content: "v a p o r • f i l e s . e x e"; }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: #00FFFF;
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px #00FFFF;
+        }
+
+        /* --- File List / Links Styling --- */
+        ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+        }
+
         li {
-            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        /* --- Styling the Links to look like Win95 Desktop Icons --- */
+        .file-link {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: white;
+            cursor: pointer;
+        }
+
+        /* Fake "Page Icon" */
+        .file-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 20, 147, 0.3); /* Vaporwave translucent */
+            border: 2px solid #FF1493;
+            box-shadow: 0 0 10px #FF1493;
+            margin-bottom: 5px;
+            position: relative;
+        }
+
+        /* A little glitch style dot on the icon */
+        .file-icon::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 4px;
+            height: 4px;
+            background-color: #00FFFF;
+            box-shadow: 0 0 5px #00FFFF;
+        }
+
+        /* Text below the icon */
+        .file-name {
+            font-size: 11px;
+            padding: 2px;
+            max-width: 130px;
+            word-wrap: break-word;
+        }
+
+        /* --- Hover/Focus State --- */
+        .file-link:hover .file-icon {
+            background: rgba(0, 255, 255, 0.4);
+            border-color: #00FFFF;
+            box-shadow: 0 0 15px #00FFFF;
+        }
+
+        .file-link:hover .file-name {
+            background-color: #000080; /* Win95 selection blue */
+            outline: 1px dotted #fff;
+        }
+
+        /* --- Small decorative element --- */
+        .status-bar {
+            margin: 0 2px 2px 2px;
+            background: #c0c0c0;
+            padding: 2px 5px;
+            border-top: 1px solid #808080;
+            font-size: 11px;
+            color: #000;
         }
     </style>
 </head>
 <body>
-    <h1>My Landing Page</h1>
-    <p>Here are the HTML files currently in the repository:</p>
 
-    <div class="file-list">
-        <ul>
-            {% for page in site.html_pages %}
-                {% if page.url != "/" %}
-                    <li><a href="{{ site.baseurl }}{{ page.url }}">{{ page.name }}</a></li>
-                {% endif %}
-            {% endfor %}
+    <div class="window">
+        <div class="title-bar">
+            <div class="title-bar-text">Exploring: C:\ESTHETIC_SYSTEM\HTML_DUMP</div>
+            <div class="title-bar-controls">
+                <button aria-label="Close">X</button>
+            </div>
+        </div>
 
-            {% for file in site.static_files %}
-                {% if file.extname == '.html' %}
-                    <li><a href="{{ site.baseurl }}{{ file.path }}">{{ file.name }}</a></li>
-                {% endif %}
-            {% endfor %}
-        </ul>
+        <div class="window-body">
+            <h1></h1> <p class="subtitle">Select file to execute...</p>
+
+            <ul>
+                {% for page in site.html_pages %}
+                    {% if page.url != "/" %}
+                    <li>
+                        <a href="{{ site.baseurl }}{{ page.url }}" class="file-link">
+                            <div class="file-icon"></div>
+                            <span class="file-name">{{ page.name }}</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% for file in site.static_files %}
+                    {% if file.extname == '.html' %}
+                    <li>
+                        <a href="{{ site.baseurl }}{{ file.path }}" class="file-link">
+                            <div class="file-icon"></div>
+                            <span class="file-name">{{ file.name }}</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="status-bar">
+            <p>1 objects(s)</p>
+        </div>
     </div>
+
 </body>
 </html>
