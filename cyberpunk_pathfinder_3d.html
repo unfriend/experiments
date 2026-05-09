@@ -176,8 +176,15 @@
       start: 0x00f3ff, target: 0xff003c, checking: 0xfdfd96, visited: 0x9c27b0,
       pathNode: 0x00ffaa, pathEdge: 0x00ffaa, treeEdge: 0x673ab7
     };
-    const GRAPH_SHAPE = { clusterNodeRadiusMin: 4, clusterNodeRadiusRange: 22 };
-    const SEARCH_TIMING = { slowStepMultiplier: 0.028, slowStepBaseSeconds: 0.012 };
+    const GRAPH_SHAPE = {
+      clusterNodeRadiusMin: 4,
+      clusterNodeRadiusRange: 22,
+      minClusterOrbitRadius: 18,
+      clusterOrbitScale: 3.6,
+      clusterVerticalSpread: 22,
+      maxEdgeDistanceMultiplier: 1.4
+    };
+    const SEARCH_TIMING = { slowStepMultiplier: 0.028, slowStepBaseSeconds: 0.012, autoRestartDelayMs: 1400 };
     const SPEED_MODE = { slowFastThreshold: 50, fastModeDisplayOffset: 49 };
 
     const canvas = document.getElementById('three-canvas');
@@ -283,10 +290,10 @@
       const n = state.config.nodesCount;
       const c = state.config.communities;
       const centers = [];
-      const radius = Math.max(18, Math.sqrt(n) * 3.6);
+      const radius = Math.max(GRAPH_SHAPE.minClusterOrbitRadius, Math.sqrt(n) * GRAPH_SHAPE.clusterOrbitScale);
       for (let i = 0; i < c; i++) {
         const a = (i / c) * Math.PI * 2;
-        centers.push(new THREE.Vector3(Math.cos(a) * radius, (Math.random() - 0.5) * 22, Math.sin(a) * radius));
+        centers.push(new THREE.Vector3(Math.cos(a) * radius, (Math.random() - 0.5) * GRAPH_SHAPE.clusterVerticalSpread, Math.sin(a) * radius));
       }
 
       graph.nodes.length = 0;
@@ -318,7 +325,7 @@
         graph.adjList.set(i, []);
       }
 
-      const maxDist = radius * 1.4;
+      const maxDist = radius * GRAPH_SHAPE.maxEdgeDistanceMultiplier;
       for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
           const ni = graph.nodes[i], nj = graph.nodes[j];
@@ -357,8 +364,9 @@
     function ensureConnected() {
       const seen = new Set([0]);
       const q = [0];
-      while (q.length) {
-        const curr = q.shift();
+      let readIndex = 0;
+      while (readIndex < q.length) {
+        const curr = q[readIndex++];
         for (const n of graph.adjList.get(curr)) if (!seen.has(n.target)) { seen.add(n.target); q.push(n.target); }
       }
       if (seen.size === graph.nodes.length) return;
@@ -538,7 +546,7 @@
 
     function startLoopTimer() {
       if (state.loopForever && (state.status === 'found' || state.status === 'no_path')) {
-        loopTimer = setTimeout(() => { resetSearch(); startSearch(); }, 1400);
+        loopTimer = setTimeout(() => { resetSearch(); startSearch(); }, SEARCH_TIMING.autoRestartDelayMs);
       }
     }
 
@@ -566,7 +574,7 @@
         btnAction.textContent = state.status === 'paused' ? 'RESUME_SYS()' : (state.status === 'found' || state.status === 'no_path' ? 'RESTART_SYS()' : 'INIT_SEARCH()');
       }
 
-      const lock = state.status === 'running';
+      const lock = state.status === 'running' || state.status === 'paused';
       ['btn-dijkstra', 'btn-astar', 'btn-clear', 'btn-regen', 'range-nodes', 'range-clusters', 'range-intra', 'range-inter'].forEach((id) => {
         byId(id).disabled = lock;
       });
