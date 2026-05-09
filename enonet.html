@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generative Ambient Network Synth</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050508;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #fff;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(5, 5, 8, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 10;
+            transition: opacity 1s ease;
+        }
+
+        h1 {
+            font-weight: 300;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        p {
+            color: #8892b0;
+            text-align: center;
+            max-width: 500px;
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 16px;
+            color: #fff;
+            background: transparent;
+            border: 1px solid #4a5568;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #fff;
+            color: #000;
+            border-color: #fff;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #4a5568;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 5;
+            letter-spacing: 1px;
+            opacity: 0;
+            transition: opacity 2s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-overlay">
+        <h1>AMBIENT NETWORK</h1>
+        <p>A generative synthesizer inspired by Brian Eno. Each node is a voice on an independent tape loop. Position dictates pitch and space. The composition will unfold endlessly.</p>
+        <button id="start-btn">Initialize Audio</button>
+    </div>
+
+    <div id="instructions">
+        DRAG NODES TO CHANGE PITCH (Y) AND PANNING (X) <br>
+        DOUBLE-CLICK TO ADD NEW VOICES
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        // --- Web Audio API Setup ---
+        let audioCtx;
+        let masterGain;
+        let convolver;
+        let delay;
+        let isPlaying = false;
+
+        // Db Major Ambient Scale (Pentatonic/Hexatonic mix)
+        const scale = [
+            69.30,   // Db2
+            87.31,   // F2
+            103.83,  // Ab2
+            138.59,  // Db3
+            155.56,  // Eb3
+            174.61,  // F3
+            207.65,  // Ab3
+            277.18,  // Db4
+            311.13,  // Eb4
+            349.23,  // F4
+            415.30,  // Ab4
+            554.37,  // Db5
+            622.25,  // Eb5
+            698.46,  // F5
+            830.61   // Ab5
+        ];
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.8;
+
+            // Compressor to keep things smooth
+            const compressor = audioCtx.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(-20, audioCtx.currentTime);
+            compressor.knee.setValueAtTime(10, audioCtx.currentTime);
+            compressor.ratio.setValueAtTime(4, audioCtx.currentTime);
+            compressor.attack.setValueAtTime(0.5, audioCtx.currentTime);
+            compressor.release.setValueAtTime(1.0, audioCtx.currentTime);
+
+            // Reverb (Custom Impulse Response Generation for a massive wash)
+            convolver = audioCtx.createConvolver();
+            const length = audioCtx.sampleRate * 5; // 5 seconds IR
+            const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
+            for (let i = 0; i < 2; i++) {
+                const channelData = impulse.getChannelData(i);
+                for (let j = 0; j < length; j++) {
+                    // Generate noise and shape it with an exponential decay envelope
+                    channelData[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / length, 4);
+                }
+            }
+            convolver.buffer = impulse;
+
+            // Long feedback delay for the "shimmer/tape" feel
+            delay = audioCtx.createDelay(5.0);
+            delay.delayTime.value = 2.5; // 2.5 seconds delay
+            const delayFeedback = audioCtx.createGain();
+            delayFeedback.gain.value = 0.4;
+            const delayFilter = audioCtx.createBiquadFilter();
+            delayFilter.type = 'lowpass';
+            delayFilter.frequency.value = 1200;
+
+            // Routing
+            masterGain.connect(convolver);
+            masterGain.connect(delay);
+            
+            delay.connect(delayFeedback);
+            delayFeedback.connect(delayFilter);
+            delayFilter.connect(delay);
+            delayFilter.connect(convolver); // Route delay into reverb
+
+            convolver.connect(compressor);
+            masterGain.connect(compressor); // Dry signal + wet signal
+            compressor.connect(audioCtx.destination);
+        }
+
+        function playNodeVoice(x, y, duration) {
+            if (!audioCtx) return;
+
+            // Map Y position to pitch index (inverted, so higher on screen = higher pitch)
+            const normalizedY = 1 - Math.max(0, Math.min(1, y / window.innerHeight));
+            const noteIndex = Math.floor(normalizedY * scale.length);
+            const freq = scale[Math.min(noteIndex, scale.length - 1)];
+
+            // Map X position to panning
+            const normalizedX = (x / window.innerWidth) * 2 - 1; // -1 to 1
+
+            const osc = audioCtx.createOscillator();
+            const panner = audioCtx.createStereoPanner();
+            const voiceGain = audioCtx.createGain();
+
+            // Tape wow/flutter (very slow LFO on pitch)
+            const lfo = audioCtx.createOscillator();
+            const lfoGain = audioCtx.createGain();
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.1 + Math.random() * 0.5; // slow wobble
+            lfoGain.gain.value = freq * 0.005; // Modulate by a tiny fraction of the frequency
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            lfo.start();
+
+            // Soft sine/triangle blend implicitly by randomly choosing waveform
+            osc.type = Math.random() > 0.3 ? 'sine' : 'triangle';
+            osc.frequency.value = freq;
+
+            panner.pan.value = normalizedX;
+
+            // Endless ambient envelope (Very slow A/R)
+            const now = audioCtx.currentTime;
+            voiceGain.gain.setValueAtTime(0, now);
+            voiceGain.gain.linearRampToValueAtTime(0.06, now + duration * 0.3); // Slow attack (lowered for denser network)
+            voiceGain.gain.linearRampToValueAtTime(0.04, now + duration * 0.6); // Sustain slightly lower
+            voiceGain.gain.linearRampToValueAtTime(0, now + duration);          // Slow release
+
+            osc.connect(voiceGain);
+            voiceGain.connect(panner);
+            panner.connect(masterGain);
+
+            osc.start(now);
+            osc.stop(now + duration);
+
+            // Cleanup
+            setTimeout(() => {
+                try {
+                    lfo.stop();
+                    lfo.disconnect();
+                    lfoGain.disconnect();
+                    osc.disconnect();
+                    voiceGain.disconnect();
+                    panner.disconnect();
+                } catch(e) {}
+            }, duration * 1000 + 1000);
+        }
+
+        // --- Visual Canvas Setup ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        let width, height;
+
+        const nodes = [];
+        const ripples = [];
+        const walkers = []; // Added walkers array
+        const particles = []; // Added for flow field
+        const connectionDistance = 180; // Decreased slightly to handle higher density
+        let timePassed = 0; // For flow field animation
+
+        // Prime numbers for loop durations to ensure generative phasing
+        const durations = [7, 11, 13, 17, 19, 23, 29];
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = 0;
+                this.vy = 0;
+                this.size = Math.random() * 1.5 + 0.5;
+                this.alpha = Math.random() * 0.4 + 0.1;
+                this.speedMult = Math.random() * 0.5 + 0.5;
+            }
+
+            update(dt, time) {
+                // Generate a swirling vector flow field using trig
+                const scale = 0.002;
+                const angle = (Math.sin(this.x * scale + time * 0.1) * Math.cos(this.y * scale + time * 0.15)) * Math.PI * 4;
+                
+                const targetVx = Math.cos(angle) * this.speedMult;
+                const targetVy = Math.sin(angle) * this.speedMult;
+
+                // Smoothly steer towards flow field vectors
+                this.vx += (targetVx - this.vx) * 0.05;
+                this.vy += (targetVy - this.vy) * 0.05;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Wrap around
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+            }
+
+            draw() {
+                ctx.fillStyle = `rgba(100, 200, 255, ${this.alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class Node {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.radius = 4;
+                
+                // Generative timer
+                this.loopDuration = durations[Math.floor(Math.random() * durations.length)]; 
+                this.timer = Math.random() * this.loopDuration; // Start at random phase
+                this.isActive = false;
+                this.activeTimer = 0;
+            }
+
+            update(dt) {
+                // Brownian motion / random jitter
+                this.vx += (Math.random() - 0.5) * dt * 0.5;
+                this.vy += (Math.random() - 0.5) * dt * 0.5;
+
+                // Speed limit
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                const maxSpeed = 0.5;
+                if (speed > maxSpeed) {
+                    this.vx = (this.vx / speed) * maxSpeed;
+                    this.vy = (this.vy / speed) * maxSpeed;
+                }
+
+                // Drift
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Wrap around edges to create continuous flow
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+
+                // Audio Logic
+                if (isPlaying) {
+                    this.timer += dt;
+                    if (this.timer >= this.loopDuration) {
+                        this.timer = 0;
+                        this.trigger();
+                    }
+                }
+
+                if (this.isActive) {
+                    this.activeTimer -= dt;
+                    if (this.activeTimer <= 0) {
+                        this.isActive = false;
+                    }
+                }
+            }
+
+            trigger() {
+                this.isActive = true;
+                // Keep visually active for a bit
+                this.activeTimer = 1.5; 
+                
+                // Add visual ripple
+                ripples.push({
+                    x: this.x,
+                    y: this.y,
+                    radius: this.radius,
+                    maxRadius: 150 + Math.random() * 100,
+                    alpha: 0.6,
+                    speed: 0.5 + Math.random() * 0.5
+                });
+
+                // Play audio
+                // Note duration is proportional to loop duration, creating overlaps
+                const noteDuration = this.loopDuration * 0.8; 
+                playNodeVoice(this.x, this.y, noteDuration);
+            }
+
+            draw() {
+                // Draw the timer progress arc (tape loop visualizer)
+                const progress = this.timer / this.loopDuration;
+                ctx.beginPath();
+                // Start arc at the top (-Math.PI / 2) and draw clockwise
+                ctx.arc(this.x, this.y, this.radius + 8, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * progress));
+                ctx.strokeStyle = this.isActive ? 'rgba(0, 243, 255, 0.8)' : 'rgba(136, 146, 176, 0.2)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Draw the core node
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius + (this.isActive ? 3 : 0), 0, Math.PI * 2);
+                ctx.fillStyle = this.isActive ? '#00f3ff' : '#2a3548';
+                ctx.fill();
+
+                if (this.isActive) {
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = '#00f3ff';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        class Walker {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.radius = 2;
+            }
+
+            update(dt) {
+                // Erratic, fast movement
+                this.vx += (Math.random() - 0.5) * dt * 15.0;
+                this.vy += (Math.random() - 0.5) * dt * 15.0;
+
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                const maxSpeed = 2.0;
+                if (speed > maxSpeed) {
+                    this.vx = (this.vx / speed) * maxSpeed;
+                    this.vy = (this.vy / speed) * maxSpeed;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+
+                // Trigger nodes on visit
+                if (isPlaying) {
+                    for (let node of nodes) {
+                        const dx = this.x - node.x;
+                        const dy = this.y - node.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Trigger if close and not already active (debounce)
+                        if (dist < node.radius + 15 && !node.isActive) {
+                            node.trigger();
+                            node.timer = 0; // Reset node's tape loop to sync with the walker visit
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                // Outer glow aura
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 3, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 42, 109, 0.2)';
+                ctx.fill();
+
+                // Core
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff2a6d'; // Neon pink/magenta spark
+                ctx.fill();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ff2a6d';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // Initialize with a few nodes
+        function initNodes() {
+            // Denser network (30 nodes instead of 7)
+            for (let i = 0; i < 30; i++) {
+                nodes.push(new Node(
+                    Math.random() * width,
+                    Math.random() * height
+                ));
+            }
+            
+            // Add some random walkers
+            for (let i = 0; i < 4; i++) {
+                walkers.push(new Walker(
+                    Math.random() * width,
+                    Math.random() * height
+                ));
+            }
+
+            // Initialize background flow field particles
+            for (let i = 0; i < 300; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        let lastTime = performance.now();
+        function animate(time) {
+            const dt = (time - lastTime) / 1000;
+            lastTime = time;
+            timePassed += dt;
+
+            // Normal composite for trailing background
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = 'rgba(5, 5, 12, 0.25)'; // Darker, slightly blue void
+            ctx.fillRect(0, 0, width, height);
+
+            // Additive blending for glows and lights
+            ctx.globalCompositeOperation = 'lighter';
+
+            // Update and draw flow field particles
+            particles.forEach(p => {
+                p.update(dt, timePassed);
+                p.draw();
+            });
+
+            // Draw edges
+            ctx.lineWidth = 1;
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const dx = nodes[i].x - nodes[j].x;
+                    const dy = nodes[i].y - nodes[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < connectionDistance) {
+                        const alpha = 1 - (dist / connectionDistance);
+                        
+                        // If one is active, highlight the connection
+                        const isConnectionActive = nodes[i].isActive || nodes[j].isActive;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(nodes[i].x, nodes[i].y);
+                        ctx.lineTo(nodes[j].x, nodes[j].y);
+                        
+                        if (isConnectionActive) {
+                            ctx.strokeStyle = `rgba(0, 243, 255, ${alpha * 0.6})`; // Glowing Cyan edge
+                        } else {
+                            ctx.strokeStyle = `rgba(60, 80, 110, ${alpha * 0.15})`; // Dim edge
+                        }
+                        
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Update and draw Ripples
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                const r = ripples[i];
+                r.radius += r.speed;
+                r.alpha -= 0.005 * r.speed;
+
+                if (r.alpha <= 0 || r.radius >= r.maxRadius) {
+                    ripples.splice(i, 1);
+                    continue;
+                }
+
+                ctx.beginPath();
+                ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(0, 243, 255, ${r.alpha})`; // Cyan ripple
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            // Update and draw Walkers
+            walkers.forEach(walker => {
+                walker.update(dt);
+                walker.draw();
+            });
+
+            // Update and draw Nodes
+            nodes.forEach(node => {
+                node.update(dt);
+                node.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- Interaction ---
+        let draggedNode = null;
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            for (let node of nodes) {
+                const dx = mouseX - node.x;
+                const dy = mouseY - node.y;
+                if (Math.sqrt(dx*dx + dy*dy) < 20) {
+                    draggedNode = node;
+                    break;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (draggedNode) {
+                const rect = canvas.getBoundingClientRect();
+                draggedNode.x = e.clientX - rect.left;
+                draggedNode.y = e.clientY - rect.top;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            draggedNode = null;
+        });
+
+        canvas.addEventListener('dblclick', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const newNode = new Node(mouseX, mouseY);
+            nodes.push(newNode);
+            
+            // Trigger immediately to give audio feedback
+            if (isPlaying) {
+                newNode.trigger();
+            }
+        });
+
+        // --- Boot ---
+        document.getElementById('start-btn').addEventListener('click', () => {
+            initAudio();
+            audioCtx.resume().then(() => {
+                isPlaying = true;
+                document.getElementById('ui-overlay').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('ui-overlay').style.display = 'none';
+                    document.getElementById('instructions').style.opacity = '1';
+                }, 1000);
+            });
+        });
+
+        initNodes();
+        animate(performance.now());
+    </script>
+</body>
+</html>
