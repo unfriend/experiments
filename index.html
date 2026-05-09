@@ -13,20 +13,20 @@
             margin: 0;
             padding: 0;
             font-family: "MS Sans Serif", "Microsoft Sans Serif", Arial, sans-serif;
-            user-select: none; /* Prevents text highlighting while dragging */
+            user-select: none;
         }
 
         body, html {
             height: 100%;
             overflow: hidden;
-            background-color: #008080; /* Classic Win95 Teal */
+            background-color: #008080;
         }
 
         /* --- Desktop Area --- */
         #desktop {
             position: relative;
             width: 100%;
-            height: calc(100% - 30px); /* Leave room for taskbar */
+            height: calc(100% - 30px);
             padding: 10px;
             display: flex;
             flex-direction: column;
@@ -55,7 +55,6 @@
             margin-bottom: 4px;
         }
 
-        /* Little dog-ear fold for the document icon */
         .icon-img::after {
             content: '';
             position: absolute;
@@ -110,10 +109,9 @@
 
         #start-btn:active {
             border-color: #808080 #fff #fff #808080;
-            padding: 3px 4px 1px 6px; /* Shifts text to simulate press */
+            padding: 3px 4px 1px 6px;
         }
 
-        /* Windows Logo Fake */
         .win-logo {
             display: inline-block;
             width: 12px;
@@ -168,7 +166,7 @@
             background-color: #c0c0c0;
             border: 2px solid;
             border-color: #fff #808080 #808080 #fff;
-            display: none; /* Hidden by default */
+            display: none;
             flex-direction: row;
             z-index: 10000;
         }
@@ -202,19 +200,19 @@
             color: white;
         }
 
-        /* --- Draggable Windows --- */
+        /* --- Windows --- */
         .window {
             position: absolute;
             width: 400px;
             height: 300px;
+            min-width: 200px;
+            min-height: 150px;
             background: #c0c0c0;
             border: 2px solid;
             border-color: #fff #000 #000 #fff;
             box-shadow: inset 1px 1px #dfdfdf, inset -1px -1px #808080;
             display: flex;
             flex-direction: column;
-            top: 50px;
-            left: 50px;
         }
 
         .title-bar {
@@ -258,19 +256,42 @@
             border: 2px solid;
             border-color: #808080 #fff #fff #808080;
             margin: 2px;
+            position: relative;
         }
 
         iframe {
             width: 100%;
             height: 100%;
             border: none;
+            display: block;
+        }
+
+        /* Prevent iframe from stealing mouse events during drag/resize */
+        .window.is-dragging iframe, 
+        .window.is-resizing iframe {
+            pointer-events: none;
+        }
+
+        /* --- Resizing Grip --- */
+        .resize-handle {
+            position: absolute;
+            right: 2px;
+            bottom: 2px;
+            width: 12px;
+            height: 12px;
+            cursor: se-resize;
+            z-index: 10;
+            /* Classic Win95 grip texture */
+            background-image: 
+                linear-gradient(135deg, transparent 40%, #fff 40%, #fff 50%, #808080 50%, #808080 60%, transparent 60%),
+                linear-gradient(135deg, transparent 70%, #fff 70%, #fff 80%, #808080 80%, #808080 90%, transparent 90%);
         }
     </style>
 </head>
 <body>
 
     <div id="desktop">
-        
+        <!-- Loop 1: Jekyll Pages -->
         {% for page in site.html_pages %}
             {% if page.url != "/" %}
             <div class="desktop-icon" ondblclick="openWindow('{{ site.baseurl }}{{ page.url }}', '{{ page.name }}')">
@@ -280,6 +301,7 @@
             {% endif %}
         {% endfor %}
 
+        <!-- Loop 2: Static Files -->
         {% for file in site.static_files %}
             {% if file.extname == '.html' %}
             <div class="desktop-icon" ondblclick="openWindow('{{ site.baseurl }}{{ file.path }}', '{{ file.name }}')">
@@ -288,9 +310,9 @@
             </div>
             {% endif %}
         {% endfor %}
-
     </div>
 
+    <!-- Start Menu -->
     <div id="start-menu">
         <div class="start-sidebar">Windows 95</div>
         <div class="start-items">
@@ -301,12 +323,12 @@
         </div>
     </div>
 
+    <!-- Taskbar -->
     <div id="taskbar">
         <div id="start-btn" onclick="toggleStartMenu()">
             <span class="win-logo"></span> Start
         </div>
-        <div id="taskbar-windows">
-            </div>
+        <div id="taskbar-windows"></div>
         <div id="clock">00:00 AM</div>
     </div>
 
@@ -314,7 +336,7 @@
         let zIndexCounter = 100;
         let openWindowsCount = 0;
 
-        // --- Clock Functionality ---
+        // --- Clock ---
         function updateClock() {
             const now = new Date();
             let hours = now.getHours();
@@ -328,13 +350,12 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // --- Start Menu Toggle ---
+        // --- Start Menu ---
         function toggleStartMenu() {
             const menu = document.getElementById('start-menu');
             menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
         }
 
-        // Close start menu if clicked outside
         document.addEventListener('click', function(event) {
             const startBtn = document.getElementById('start-btn');
             const startMenu = document.getElementById('start-menu');
@@ -348,17 +369,16 @@
             openWindowsCount++;
             const winId = 'win-' + Date.now();
             
-            // Create Window Element
             const win = document.createElement('div');
             win.className = 'window';
             win.id = winId;
             win.style.zIndex = ++zIndexCounter;
             
-            // Stagger spawn locations slightly
             const offset = (openWindowsCount % 10) * 20;
             win.style.top = (50 + offset) + 'px';
             win.style.left = (50 + offset) + 'px';
 
+            // Notice the new resize-handle div inside the window
             win.innerHTML = `
                 <div class="title-bar" id="${winId}-title">
                     <span>${title}</span>
@@ -367,14 +387,17 @@
                 <div class="window-content">
                     <iframe src="${url}"></iframe>
                 </div>
+                <div class="resize-handle" id="${winId}-resize"></div>
             `;
 
-            // Bring to front on click
             win.addEventListener('mousedown', () => bringToFront(winId));
             
             document.getElementById('desktop').appendChild(win);
             createTaskbarItem(winId, title);
+            
+            // Apply Draggable and Resizable logic
             makeDraggable(win, document.getElementById(`${winId}-title`));
+            makeResizable(win, document.getElementById(`${winId}-resize`));
         }
 
         function closeWindow(winId) {
@@ -385,13 +408,12 @@
 
         function bringToFront(winId) {
             const win = document.getElementById(winId);
-            win.style.zIndex = ++zIndexCounter;
+            if(win) win.style.zIndex = ++zIndexCounter;
             
-            // Update title bar colors
             document.querySelectorAll('.title-bar').forEach(tb => tb.classList.add('inactive'));
-            document.getElementById(winId + '-title').classList.remove('inactive');
+            const activeTitleBar = document.getElementById(winId + '-title');
+            if(activeTitleBar) activeTitleBar.classList.remove('inactive');
 
-            // Update taskbar button styling
             document.querySelectorAll('.taskbar-item').forEach(tb => tb.classList.remove('active'));
             const taskBtn = document.getElementById('task-' + winId);
             if(taskBtn) taskBtn.classList.add('active');
@@ -405,7 +427,6 @@
             taskBtn.innerText = title;
             taskBtn.onclick = () => bringToFront(winId);
             
-            // Deselect others
             document.querySelectorAll('.taskbar-item').forEach(tb => tb.classList.remove('active'));
             taskbarTasks.appendChild(taskBtn);
         }
@@ -422,6 +443,8 @@
                 document.onmouseup = closeDragElement;
                 document.onmousemove = elementDrag;
                 bringToFront(elmnt.id);
+                // Adds class to disable iframe pointer events so it doesn't swallow mouse events
+                elmnt.classList.add('is-dragging'); 
             }
 
             function elementDrag(e) {
@@ -437,6 +460,38 @@
             function closeDragElement() {
                 document.onmouseup = null;
                 document.onmousemove = null;
+                elmnt.classList.remove('is-dragging');
+            }
+        }
+
+        // --- Resizing Logic ---
+        function makeResizable(elmnt, resizer) {
+            let startX, startY, startWidth, startHeight;
+
+            resizer.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = parseInt(document.defaultView.getComputedStyle(elmnt).width, 10);
+                startHeight = parseInt(document.defaultView.getComputedStyle(elmnt).height, 10);
+                
+                // Add event listeners to document so mouse doesn't lose the handle if moved quickly
+                document.documentElement.addEventListener('mousemove', doDrag, false);
+                document.documentElement.addEventListener('mouseup', stopDrag, false);
+                
+                bringToFront(elmnt.id);
+                elmnt.classList.add('is-resizing'); 
+            });
+
+            function doDrag(e) {
+                elmnt.style.width = (startWidth + e.clientX - startX) + 'px';
+                elmnt.style.height = (startHeight + e.clientY - startY) + 'px';
+            }
+
+            function stopDrag() {
+                document.documentElement.removeEventListener('mousemove', doDrag, false);
+                document.documentElement.removeEventListener('mouseup', stopDrag, false);
+                elmnt.classList.remove('is-resizing');
             }
         }
     </script>
