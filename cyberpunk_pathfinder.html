@@ -4,28 +4,244 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NET_WALKER: Cyberpunk Pathfinder</title>
-  
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- React and ReactDOM (via CDNJS for better GitHub Pages compatibility) -->
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  
-  <!-- Babel -->
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
-
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+
     body { margin: 0; overflow: hidden; background-color: #020205; }
+    .cyberpunk-font { font-family: 'Share Tech Mono', monospace; }
+    
+    .cyber-title {
+      font-family: 'Rajdhani', sans-serif;
+      text-transform: uppercase;
+      text-shadow: 0 0 5px #00f3ff, 0 0 10px #00f3ff;
+    }
+
+    .cyber-panel {
+      background: rgba(10, 10, 20, 0.85);
+      border: 1px solid #00f3ff;
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(0, 243, 255, 0.05);
+      backdrop-filter: blur(5px);
+    }
+
+    .cyber-button {
+      background: transparent;
+      color: #00f3ff;
+      border: 1px solid #00f3ff;
+      text-transform: uppercase;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .cyber-button:hover:not(:disabled) {
+      background: rgba(0, 243, 255, 0.2);
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.6);
+      text-shadow: 0 0 5px #00f3ff;
+    }
+
+    .cyber-button:disabled {
+      border-color: #333;
+      color: #555;
+      cursor: not-allowed;
+    }
+
+    .cyber-button.active {
+      background: #00f3ff;
+      color: #000;
+      box-shadow: 0 0 20px #00f3ff;
+    }
+    
+    .cyber-button.danger {
+      color: #ff003c;
+      border-color: #ff003c;
+    }
+    .cyber-button.danger:hover:not(:disabled) {
+      background: rgba(255, 0, 60, 0.2);
+      box-shadow: 0 0 15px rgba(255, 0, 60, 0.6);
+      text-shadow: 0 0 5px #ff003c;
+    }
+
+    .cyber-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: #1a1a2e;
+      outline: none;
+      border: 1px solid #00f3ff;
+      box-shadow: 0 0 5px rgba(0, 243, 255, 0.3);
+    }
+
+    .cyber-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: #fdfd96;
+      cursor: pointer;
+      box-shadow: 0 0 10px #fdfd96;
+      border-radius: 0;
+    }
+
+    .cyber-checkbox {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1px solid #00f3ff;
+      background: rgba(0, 243, 255, 0.1);
+      cursor: pointer;
+      position: relative;
+      outline: none;
+    }
+    .cyber-checkbox:checked::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px; width: 8px; height: 8px;
+      background: #00f3ff;
+      box-shadow: 0 0 5px #00f3ff;
+    }
+
+    .scanline {
+      width: 100%;
+      height: 100px;
+      z-index: 50;
+      position: absolute;
+      pointer-events: none;
+      background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0,243,255,0.1) 50%, rgba(0,0,0,0) 100%);
+      animation: scan 8s linear infinite;
+    }
+
+    @keyframes scan {
+      0% { top: -100px; }
+      100% { top: 100%; }
+    }
+
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #050510; border-left: 1px solid #1a1a2e; }
+    ::-webkit-scrollbar-thumb { background: #00f3ff; }
+    ::-webkit-scrollbar-thumb:hover { background: #fff; }
   </style>
 </head>
-<body>
-  <div id="root"></div>
+<body class="flex h-screen w-full text-[#00f3ff] cyberpunk-font relative selection:bg-[#ff003c] selection:text-white">
+  
+  <div class="scanline"></div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef, useCallback } = React;
+  <!-- Control Panel -->
+  <div class="w-80 h-full p-6 flex flex-col gap-6 cyber-panel relative z-10 overflow-y-auto">
+    <div class="flex items-center justify-between border-b border-[#00f3ff]/30 pb-4">
+      <h1 class="text-3xl font-bold cyber-title text-white tracking-widest">NET_WALKER</h1>
+      <span class="text-xs bg-[#00f3ff]/20 px-2 py-1 rounded border border-[#00f3ff]/50">v2.0.4</span>
+    </div>
 
-    // --- Utility Classes ---
+    <!-- Algorithm Selection -->
+    <div class="flex flex-col gap-2">
+      <span class="text-sm text-gray-400 uppercase tracking-widest">Protocol</span>
+      <div class="flex gap-2">
+        <button id="btn-dijkstra" class="flex-1 py-2 text-sm font-bold cyber-button">Dijkstra</button>
+        <button id="btn-astar" class="flex-1 py-2 text-sm font-bold cyber-button active">A*</button>
+      </div>
+    </div>
+
+    <!-- Action Controls -->
+    <div class="flex flex-col gap-2">
+      <span class="text-sm text-gray-400 uppercase tracking-widest">Execution</span>
+      <button id="btn-action" class="w-full py-3 cyber-button text-lg font-bold tracking-widest" style="box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);">INIT_SEARCH()</button>
+      <button id="btn-clear" class="w-full py-2 cyber-button text-sm">CLEAR_MEMORY()</button>
+    </div>
+
+    <!-- Status Screen -->
+    <div class="bg-[#050510] border border-[#00f3ff]/30 p-4 relative">
+      <div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#00f3ff]"></div>
+      <div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#00f3ff]"></div>
+      
+      <div class="flex justify-between items-end mb-2">
+        <span class="text-xs text-gray-500 uppercase">SYS_STATUS</span>
+        <span id="sys-status" class="text-sm font-bold text-[#00f3ff]">[IDLE]</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span class="text-gray-400">NODES_VISITED:</span>
+        <span id="stat-visited" class="font-mono text-white">0000</span>
+      </div>
+      <div class="flex justify-between text-sm mt-1">
+        <span class="text-gray-400">PATH_LENGTH:</span>
+        <span id="stat-path" class="font-mono text-[#00ffaa]">----</span>
+      </div>
+    </div>
+
+    <!-- Graph Parameters -->
+    <div class="flex flex-col gap-4 flex-grow border-t border-[#00f3ff]/30 pt-4">
+      <span class="text-sm text-gray-400 uppercase tracking-widest">Topology_Params</span>
+      
+      <div class="flex flex-col gap-1">
+        <div class="flex justify-between text-xs">
+          <span>NODES [N]</span>
+          <span id="val-nodes" class="text-white">300</span>
+        </div>
+        <input id="range-nodes" type="range" min="50" max="800" step="10" value="300" class="cyber-slider" />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <div class="flex justify-between text-xs">
+          <span>CLUSTERS [C]</span>
+          <span id="val-clusters" class="text-white">4</span>
+        </div>
+        <input id="range-clusters" type="range" min="1" max="10" value="4" class="cyber-slider" />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <div class="flex justify-between text-xs">
+          <span>INTRA_LINK_PROB</span>
+          <span id="val-intra" class="text-white">0.15</span>
+        </div>
+        <input id="range-intra" type="range" min="0.05" max="0.5" step="0.01" value="0.15" class="cyber-slider" />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <div class="flex justify-between text-xs">
+          <span>INTER_LINK_PROB</span>
+          <span id="val-inter" class="text-white">0.010</span>
+        </div>
+        <input id="range-inter" type="range" min="0" max="0.1" step="0.005" value="0.01" class="cyber-slider" />
+      </div>
+
+      <div class="flex flex-col gap-1 mt-4">
+        <div class="flex justify-between text-xs text-[#fdfd96]">
+          <span>OVERCLOCK_SPEED</span>
+          <span id="val-speed">11x</span>
+        </div>
+        <input id="range-speed" type="range" min="1" max="100" value="60" class="cyber-slider" style="box-shadow: 0 0 5px rgba(253, 253, 150, 0.5);"/>
+      </div>
+
+      <div class="flex flex-col gap-2 mt-2">
+        <label class="flex items-center gap-2 text-xs cursor-pointer">
+          <input id="check-loop" type="checkbox" class="cyber-checkbox" />
+          <span class="text-gray-300">AUTO_RESTART_LOOP</span>
+        </label>
+        <label class="flex items-center gap-2 text-xs cursor-pointer">
+          <input id="check-random" type="checkbox" class="cyber-checkbox" />
+          <span class="text-gray-300">RANDOM_NODES_ON_EXEC</span>
+        </label>
+      </div>
+      
+      <button id="btn-regen" class="w-full py-2 mt-2 cyber-button border-dashed text-xs tracking-widest">
+         REGENERATE_TOPOLOGY()
+      </button>
+    </div>
+
+    <div class="text-[10px] text-gray-600 uppercase mt-auto text-center border-t border-[#00f3ff]/20 pt-2">
+        L-CLICK: Set Target Node<br/>
+        SHIFT + L-CLICK: Set Source Node
+    </div>
+  </div>
+
+  <!-- Main Canvas Area -->
+  <div id="canvas-container" class="flex-grow relative cursor-crosshair">
+    <canvas id="main-canvas" class="absolute inset-0 w-full h-full"></canvas>
+    <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%); box-shadow: inset 0 0 100px rgba(0,0,0,0.9);"></div>
+  </div>
+
+  <script>
+    // --- MinHeap Class ---
     class MinHeap {
       constructor() { this.heap = []; }
       insert(node) {
@@ -44,9 +260,7 @@
         while (index > 0) {
           const parentIndex = Math.floor((index - 1) / 2);
           if (this.heap[parentIndex].priority <= this.heap[index].priority) break;
-          const temp = this.heap[parentIndex];
-          this.heap[parentIndex] = this.heap[index];
-          this.heap[index] = temp;
+          [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
           index = parentIndex;
         }
       }
@@ -56,7 +270,6 @@
           let leftChild = 2 * index + 1;
           let rightChild = 2 * index + 2;
           let smallest = index;
-
           if (leftChild < length && this.heap[leftChild].priority < this.heap[smallest].priority) {
             smallest = leftChild;
           }
@@ -64,777 +277,486 @@
             smallest = rightChild;
           }
           if (smallest === index) break;
-          const temp = this.heap[index];
-          this.heap[index] = this.heap[smallest];
-          this.heap[smallest] = temp;
+          [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
           index = smallest;
         }
       }
       isEmpty() { return this.heap.length === 0; }
     }
 
-    // --- Cyberpunk Styles ---
-    const styles = `
-      @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+    // --- State ---
+    const state = {
+      algo: 'A*',
+      status: 'idle',
+      config: { nodesCount: 300, communities: 4, intraProbability: 0.15, interProbability: 0.01, speed: 60 },
+      loopForever: false,
+      randomNodesOnRun: false,
+      stats: { visited: 0, pathLength: 0 }
+    };
+    
+    const searchData = {
+      frontier: new MinHeap(),
+      cameFrom: {},
+      costSoFar: {},
+      visited: new Set(),
+      path: [],
+      startNode: null,
+      targetNode: null,
+      currentCheckingNode: null
+    };
+    
+    let graph = { nodes: [], edges: [], adjList: new Map() };
+    let animationFrameId = null;
+    let lastStepTime = 0;
+    let loopTimer = null;
 
-      .cyberpunk-font { font-family: 'Share Tech Mono', monospace; }
-      
-      .cyber-title {
-        font-family: 'Rajdhani', sans-serif;
-        text-transform: uppercase;
-        text-shadow: 0 0 5px #00f3ff, 0 0 10px #00f3ff;
+    // --- DOM Elements ---
+    const canvas = document.getElementById('main-canvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+
+    // --- Graph Generation ---
+    function generateGraph() {
+      const width = canvas.width;
+      const height = canvas.height;
+      if (width === 0 || height === 0) return;
+
+      const { nodesCount, communities, intraProbability, interProbability } = state.config;
+      const nodes = [];
+      const edges = [];
+      const adjList = new Map();
+
+      const centers = Array.from({ length: communities }).map(() => ({
+        x: width * 0.15 + Math.random() * width * 0.7,
+        y: height * 0.15 + Math.random() * height * 0.7,
+      }));
+
+      for (let i = 0; i < nodesCount; i++) {
+        const comm = i % communities;
+        const center = centers[comm];
+        const angle = Math.random() * Math.PI * 2;
+        const radius = (Math.random() + Math.random() + Math.random()) / 3 * (width / (communities * 1.2)); 
+        nodes.push({
+          id: i,
+          x: Math.max(20, Math.min(width - 20, center.x + Math.cos(angle) * radius)),
+          y: Math.max(20, Math.min(height - 20, center.y + Math.sin(angle) * radius)),
+          community: comm,
+        });
+        adjList.set(i, []);
       }
 
-      .cyber-panel {
-        background: rgba(10, 10, 20, 0.85);
-        border: 1px solid #00f3ff;
-        box-shadow: 0 0 10px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(0, 243, 255, 0.05);
-        backdrop-filter: blur(5px);
-      }
+      for (let i = 0; i < nodesCount; i++) {
+        for (let j = i + 1; j < nodesCount; j++) {
+          const dist = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+          if (dist > width / 2.5) continue;
+          const sameComm = nodes[i].community === nodes[j].community;
+          const baseProb = sameComm ? intraProbability : interProbability;
+          const distanceFactor = Math.max(0, 1 - (dist / (width / 3)));
+          const finalProb = baseProb * distanceFactor;
 
-      .cyber-button {
-        background: transparent;
-        color: #00f3ff;
-        border: 1px solid #00f3ff;
-        text-transform: uppercase;
-        transition: all 0.2s;
-        position: relative;
-        overflow: hidden;
-      }
-      
-      .cyber-button:hover:not(:disabled) {
-        background: rgba(0, 243, 255, 0.2);
-        box-shadow: 0 0 15px rgba(0, 243, 255, 0.6);
-        text-shadow: 0 0 5px #00f3ff;
-      }
-
-      .cyber-button:disabled {
-        border-color: #333;
-        color: #555;
-        cursor: not-allowed;
-      }
-
-      .cyber-button.active {
-        background: #00f3ff;
-        color: #000;
-        box-shadow: 0 0 20px #00f3ff;
-      }
-      
-      .cyber-button.danger {
-        color: #ff003c;
-        border-color: #ff003c;
-      }
-      .cyber-button.danger:hover:not(:disabled) {
-        background: rgba(255, 0, 60, 0.2);
-        box-shadow: 0 0 15px rgba(255, 0, 60, 0.6);
-        text-shadow: 0 0 5px #ff003c;
-      }
-
-      .cyber-slider {
-        -webkit-appearance: none;
-        width: 100%;
-        height: 4px;
-        background: #1a1a2e;
-        outline: none;
-        border: 1px solid #00f3ff;
-        box-shadow: 0 0 5px rgba(0, 243, 255, 0.3);
-      }
-
-      .cyber-slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 12px;
-        height: 12px;
-        background: #fdfd96;
-        cursor: pointer;
-        box-shadow: 0 0 10px #fdfd96;
-        border-radius: 0;
-      }
-
-      .cyber-checkbox {
-        appearance: none;
-        width: 14px;
-        height: 14px;
-        border: 1px solid #00f3ff;
-        background: rgba(0, 243, 255, 0.1);
-        cursor: pointer;
-        position: relative;
-        outline: none;
-      }
-      .cyber-checkbox:checked::after {
-        content: '';
-        position: absolute;
-        top: 2px; left: 2px; width: 8px; height: 8px;
-        background: #00f3ff;
-        box-shadow: 0 0 5px #00f3ff;
-      }
-
-      .scanline {
-        width: 100%;
-        height: 100px;
-        z-index: 50;
-        position: absolute;
-        pointer-events: none;
-        background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0,243,255,0.1) 50%, rgba(0,0,0,0) 100%);
-        animation: scan 8s linear infinite;
-      }
-
-      @keyframes scan {
-        0% { top: -100px; }
-        100% { top: 100%; }
-      }
-
-      ::-webkit-scrollbar { width: 8px; }
-      ::-webkit-scrollbar-track { background: #050510; border-left: 1px solid #1a1a2e; }
-      ::-webkit-scrollbar-thumb { background: #00f3ff; }
-      ::-webkit-scrollbar-thumb:hover { background: #fff; }
-    `;
-
-    function App() {
-      const canvasRef = useRef(null);
-      const graphRef = useRef({ nodes: [], edges: [], adjList: new Map() });
-      const searchStateRef = useRef({
-        status: 'idle',
-        frontier: new MinHeap(),
-        cameFrom: {},
-        costSoFar: {},
-        visited: new Set(),
-        path: [],
-        startNode: null,
-        targetNode: null,
-        currentCheckingNode: null
-      });
-      const animationRef = useRef(null);
-      const containerRef = useRef(null);
-      const lastStepTimeRef = useRef(0);
-      const stepSearchRef = useRef(null);
-      const flagsRef = useRef({ loopForever: false, randomNodes: false });
-
-      const [config, setConfig] = useState({
-        nodesCount: 300,
-        communities: 4,
-        intraProbability: 0.15,
-        interProbability: 0.01,
-        speed: 60
-      });
-      const [algo, setAlgo] = useState('A*');
-      const [status, setStatus] = useState('idle');
-      const [stats, setStats] = useState({ nodesVisited: 0, pathLength: 0 });
-      const [loopForever, setLoopForever] = useState(false);
-      const [randomNodesOnRun, setRandomNodesOnRun] = useState(false);
-
-      useEffect(() => { flagsRef.current.loopForever = loopForever; }, [loopForever]);
-      useEffect(() => { flagsRef.current.randomNodes = randomNodesOnRun; }, [randomNodesOnRun]);
-
-      const generateGraph = useCallback(() => {
-        if (!canvasRef.current || !containerRef.current) return;
-        
-        const rect = containerRef.current.getBoundingClientRect();
-        canvasRef.current.width = rect.width;
-        canvasRef.current.height = rect.height;
-        
-        const width = rect.width;
-        const height = rect.height;
-        const { nodesCount, communities, intraProbability, interProbability } = config;
-
-        const nodes = [];
-        const edges = [];
-        const adjList = new Map();
-
-        const centers = Array.from({ length: communities }).map(() => ({
-          x: width * 0.15 + Math.random() * width * 0.7,
-          y: height * 0.15 + Math.random() * height * 0.7,
-        }));
-
-        for (let i = 0; i < nodesCount; i++) {
-          const comm = i % communities;
-          const center = centers[comm];
-          
-          const angle = Math.random() * Math.PI * 2;
-          const radius = (Math.random() + Math.random() + Math.random()) / 3 * (width / (communities * 1.2)); 
-          
-          nodes.push({
-            id: i,
-            x: Math.max(20, Math.min(width - 20, center.x + Math.cos(angle) * radius)),
-            y: Math.max(20, Math.min(height - 20, center.y + Math.sin(angle) * radius)),
-            community: comm,
-          });
-          adjList.set(i, []);
-        }
-
-        for (let i = 0; i < nodesCount; i++) {
-          for (let j = i + 1; j < nodesCount; j++) {
-            const dist = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
-            if (dist > width / 2.5) continue;
-
-            const sameComm = nodes[i].community === nodes[j].community;
-            const baseProb = sameComm ? intraProbability : interProbability;
-            const distanceFactor = Math.max(0, 1 - (dist / (width / 3)));
-            const finalProb = baseProb * distanceFactor;
-
-            if (Math.random() < finalProb) {
-              edges.push({ source: i, target: j, weight: dist });
-              adjList.get(i).push({ target: j, weight: dist });
-              adjList.get(j).push({ target: i, weight: dist });
-            }
+          if (Math.random() < finalProb) {
+            edges.push({ source: i, target: j, weight: dist });
+            adjList.get(i).push({ target: j, weight: dist });
+            adjList.get(j).push({ target: i, weight: dist });
           }
         }
+      }
 
-        const connected = new Set([0]);
-        let connectedCount = 1;
-        const queue = [0];
-        while(queue.length > 0) {
-            const curr = queue.shift();
-            for(let neighbor of adjList.get(curr)) {
-                if(!connected.has(neighbor.target)) {
-                    connected.add(neighbor.target);
-                    queue.push(neighbor.target);
-                    connectedCount++;
-                }
-            }
-        }
+      const connected = new Set([0]);
+      let connectedCount = 1;
+      const queue = [0];
+      while(queue.length > 0) {
+          const curr = queue.shift();
+          for(let neighbor of adjList.get(curr)) {
+              if(!connected.has(neighbor.target)) {
+                  connected.add(neighbor.target);
+                  queue.push(neighbor.target);
+                  connectedCount++;
+              }
+          }
+      }
 
-        if (connectedCount < nodesCount) {
-            for(let i=0; i<nodesCount; i++) {
-                if(!connected.has(i)) {
-                    let nearest = -1;
-                    let minDist = Infinity;
-                    for(let c of connected) {
-                         const dist = Math.hypot(nodes[i].x - nodes[c].x, nodes[i].y - nodes[c].y);
-                         if(dist < minDist) { minDist = dist; nearest = c; }
-                    }
-                    if (nearest !== -1) {
-                        edges.push({ source: i, target: nearest, weight: minDist });
-                        adjList.get(i).push({ target: nearest, weight: minDist });
-                        adjList.get(nearest).push({ target: i, weight: minDist });
-                        connected.add(i);
-                    }
-                }
-            }
-        }
+      if (connectedCount < nodesCount) {
+          for(let i=0; i<nodesCount; i++) {
+              if(!connected.has(i)) {
+                  let nearest = -1;
+                  let minDist = Infinity;
+                  for(let c of connected) {
+                       const dist = Math.hypot(nodes[i].x - graph.nodes[c]?.x || 0, nodes[i].y - graph.nodes[c]?.y || 0);
+                       if(dist < minDist) { minDist = dist; nearest = c; }
+                  }
+                  if (nearest !== -1) {
+                      edges.push({ source: i, target: nearest, weight: minDist });
+                      adjList.get(i).push({ target: nearest, weight: minDist });
+                      adjList.get(nearest).push({ target: i, weight: minDist });
+                      connected.add(i);
+                  }
+              }
+          }
+      }
 
-        graphRef.current = { nodes, edges, adjList };
-        
-        resetSearch();
-        const startNode = nodes[Math.floor(Math.random() * nodes.length)];
-        let targetNode = nodes[Math.floor(Math.random() * nodes.length)];
-        while(targetNode.id === startNode.id && nodes.length > 1) {
-          targetNode = nodes[Math.floor(Math.random() * nodes.length)];
-        }
-        
-        searchStateRef.current.startNode = startNode;
-        searchStateRef.current.targetNode = targetNode;
+      graph = { nodes, edges, adjList };
+      resetSearch();
+      
+      if(nodes.length > 0) {
+          const startNode = nodes[Math.floor(Math.random() * nodes.length)];
+          let targetNode = nodes[Math.floor(Math.random() * nodes.length)];
+          while(targetNode.id === startNode.id && nodes.length > 1) {
+            targetNode = nodes[Math.floor(Math.random() * nodes.length)];
+          }
+          searchData.startNode = startNode;
+          searchData.targetNode = targetNode;
+      }
+      draw();
+    }
 
-        draw();
-      }, [config]);
+    // --- Drawing ---
+    function draw() {
+      const { width, height } = canvas;
+      const { nodes, edges } = graph;
+      const { visited, path, startNode, targetNode, currentCheckingNode, cameFrom } = searchData;
 
-      useEffect(() => {
-        const handleResize = () => {
-            if(status === 'idle' || status === 'found' || status === 'no_path') {
-                 generateGraph();
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-      }, [generateGraph, status]);
+      ctx.fillStyle = '#050510';
+      ctx.fillRect(0, 0, width, height);
 
-      const draw = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        const { width, height } = canvas;
-        const { nodes, edges } = graphRef.current;
-        const { visited, path, startNode, targetNode, currentCheckingNode, frontier } = searchStateRef.current;
+      ctx.strokeStyle = 'rgba(0, 243, 255, 0.03)';
+      ctx.lineWidth = 1;
+      for(let i=0; i<width; i+=40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke(); }
+      for(let i=0; i<height; i+=40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(width, i); ctx.stroke(); }
 
-        ctx.fillStyle = '#050510';
-        ctx.fillRect(0, 0, width, height);
+      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(0, 243, 255, 0.15)';
+      ctx.beginPath();
+      for (const edge of edges) {
+        const n1 = nodes[edge.source];
+        const n2 = nodes[edge.target];
+        if(n1 && n2) { ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); }
+      }
+      ctx.stroke();
 
-        ctx.strokeStyle = 'rgba(0, 243, 255, 0.03)';
-        ctx.lineWidth = 1;
-        for(let i=0; i<width; i+=40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke(); }
-        for(let i=0; i<height; i+=40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(width, i); ctx.stroke(); }
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(180, 0, 255, 0.4)';
+      ctx.beginPath();
+      for (const nodeId in cameFrom) {
+          const parentId = cameFrom[nodeId];
+          if (parentId !== null && parentId !== undefined) {
+               const n1 = nodes[nodeId];
+               const n2 = nodes[parentId];
+               if(n1 && n2) { ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); }
+          }
+      }
+      ctx.stroke();
 
-        ctx.lineWidth = 0.5;
-        ctx.strokeStyle = 'rgba(0, 243, 255, 0.15)';
+      if (path.length > 0) {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00ffaa';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#00ffaa';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.beginPath();
-        for (const edge of edges) {
-          const n1 = nodes[edge.source];
-          const n2 = nodes[edge.target];
-          ctx.moveTo(n1.x, n1.y);
-          ctx.lineTo(n2.x, n2.y);
+        for (let i = 0; i < path.length; i++) {
+          const n = nodes[path[i]];
+          if (i === 0) ctx.moveTo(n.x, n.y);
+          else ctx.lineTo(n.x, n.y);
         }
         ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
 
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = 'rgba(180, 0, 255, 0.4)';
+      for (const node of nodes) {
+        let radius = 2.5;
+        let fillStyle = `hsl(${(node.community * 360) / state.config.communities}, 80%, 60%)`;
+        let glowing = false;
+
+        if (node.id === startNode?.id) {
+          radius = 8; fillStyle = '#00f3ff'; glowing = true;
+        } else if (node.id === targetNode?.id) {
+          radius = 8; fillStyle = '#ff003c'; glowing = true;
+        } else if (path.includes(node.id)) {
+          radius = 4; fillStyle = '#00ffaa'; glowing = true;
+        } else if (node.id === currentCheckingNode) {
+          radius = 6; fillStyle = '#fdfd96'; glowing = true;
+        } else if (visited.has(node.id)) {
+          radius = 3; fillStyle = 'rgba(180, 0, 255, 0.8)';
+        }
+
         ctx.beginPath();
-        for (const [nodeId, parentId] of Object.entries(searchStateRef.current.cameFrom)) {
-            if (parentId !== null && parentId !== undefined) {
-                 const n1 = nodes[nodeId];
-                 const n2 = nodes[parentId];
-                 if(n1 && n2) {
-                     ctx.moveTo(n1.x, n1.y);
-                     ctx.lineTo(n2.x, n2.y);
-                 }
-            }
-        }
-        ctx.stroke();
-
-        if (path.length > 0) {
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = '#00ffaa';
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = '#00ffaa';
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.beginPath();
-          for (let i = 0; i < path.length; i++) {
-            const n = nodes[path[i]];
-            if (i === 0) ctx.moveTo(n.x, n.y);
-            else ctx.lineTo(n.x, n.y);
-          }
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-        }
-
-        for (const node of nodes) {
-          let radius = 2.5;
-          let fillStyle = `hsl(${(node.community * 360) / config.communities}, 80%, 60%)`;
-          let glowing = false;
-
-          if (node.id === startNode?.id) {
-            radius = 8;
-            fillStyle = '#00f3ff';
-            glowing = true;
-          } else if (node.id === targetNode?.id) {
-            radius = 8;
-            fillStyle = '#ff003c';
-            glowing = true;
-          } else if (path.includes(node.id)) {
-            radius = 4;
-            fillStyle = '#00ffaa';
-            glowing = true;
-          } else if (node.id === currentCheckingNode) {
-            radius = 6;
-            fillStyle = '#fdfd96';
-            glowing = true;
-          } else if (visited.has(node.id)) {
-            radius = 3;
-            fillStyle = 'rgba(180, 0, 255, 0.8)';
-          }
-
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-          ctx.fillStyle = fillStyle;
-          
-          if (glowing) {
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = fillStyle;
-          }
-          
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          
-          if(node.id === targetNode?.id) {
-              ctx.strokeStyle = '#ff003c';
-              ctx.lineWidth = 1;
-              ctx.beginPath(); ctx.arc(node.x, node.y, 14 + Math.sin(Date.now()/200)*2, 0, Math.PI * 2); ctx.stroke();
-              ctx.beginPath(); ctx.arc(node.x, node.y, 20, 0, Math.PI * 2); ctx.stroke();
-          }
-          if(node.id === startNode?.id) {
-            ctx.strokeStyle = '#00f3ff';
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.arc(node.x, node.y, 14, 0, Math.PI * 2); ctx.stroke();
-          }
-        }
-      }, [config.communities]);
-
-      const heuristic = (nodeId, targetId) => {
-        const n1 = graphRef.current.nodes[nodeId];
-        const n2 = graphRef.current.nodes[targetId];
-        return Math.hypot(n1.x - n2.x, n1.y - n2.y);
-      };
-
-      const reconstructPath = (endId) => {
-        const state = searchStateRef.current;
-        let curr = endId;
-        const path = [];
-        let length = 0;
-        while (curr !== null) {
-          path.unshift(curr);
-          const parent = state.cameFrom[curr];
-          if (parent !== null) {
-               const edge = graphRef.current.adjList.get(parent).find(e => e.target === curr);
-               if(edge) length += edge.weight;
-          }
-          curr = parent;
-        }
-        state.path = path;
-        setStats({ nodesVisited: state.visited.size, pathLength: Math.round(length) });
-      };
-
-      const stepSearch = useCallback((timestamp) => {
-        const state = searchStateRef.current;
-        const { adjList } = graphRef.current;
-
-        if (!lastStepTimeRef.current) lastStepTimeRef.current = timestamp;
-
-        let stepsToRun = 0;
-        let shouldRun = false;
-
-        if (config.speed < 50) {
-            const delayMs = (50 - config.speed) * 30;
-            if (timestamp - lastStepTimeRef.current >= delayMs) {
-                stepsToRun = 1;
-                shouldRun = true;
-                lastStepTimeRef.current = timestamp;
-            }
-        } else {
-            stepsToRun = Math.max(1, config.speed - 49);
-            shouldRun = true;
-        }
-
-        if (shouldRun) {
-            for (let i = 0; i < stepsToRun; i++) {
-                if (state.frontier.isEmpty()) {
-                    state.status = 'no_path';
-                    setStatus('no_path');
-                    cancelAnimationFrame(animationRef.current);
-                    return;
-                }
-
-                const currentItem = state.frontier.extractMin();
-                const current = currentItem.id;
-                state.currentCheckingNode = current;
-
-                if (current === state.targetNode.id) {
-                    reconstructPath(current);
-                    state.status = 'found';
-                    state.currentCheckingNode = null;
-                    setStatus('found');
-                    cancelAnimationFrame(animationRef.current);
-                    draw();
-                    return;
-                }
-
-                if (state.visited.has(current)) continue;
-                state.visited.add(current);
-
-                const neighbors = adjList.get(current);
-                if(neighbors) {
-                    for (let next of neighbors) {
-                        if (state.visited.has(next.target)) continue;
-
-                        const newCost = state.costSoFar[current] + next.weight;
-                        if (!(next.target in state.costSoFar) || newCost < state.costSoFar[next.target]) {
-                            state.costSoFar[next.target] = newCost;
-                            state.cameFrom[next.target] = current;
-                            
-                            const priority = newCost + (algo === 'A*' ? heuristic(next.target, state.targetNode.id) : 0);
-                            state.frontier.insert({ id: next.target, priority });
-                        }
-                    }
-                }
-            }
-            
-            setStats({ nodesVisited: state.visited.size, pathLength: 0 });
-            draw();
-        }
+        ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = fillStyle;
+        if (glowing) { ctx.shadowBlur = 10; ctx.shadowColor = fillStyle; }
+        ctx.fill();
+        ctx.shadowBlur = 0;
         
-        if (state.status === 'running') {
-            animationRef.current = requestAnimationFrame((t) => stepSearchRef.current(t));
+        if(node.id === targetNode?.id) {
+            ctx.strokeStyle = '#ff003c'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(node.x, node.y, 14 + Math.sin(Date.now()/200)*2, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(node.x, node.y, 20, 0, Math.PI * 2); ctx.stroke();
         }
-      }, [algo, config.speed, draw]);
-
-      useEffect(() => { stepSearchRef.current = stepSearch; }, [stepSearch]);
-
-      const resetSearch = useCallback(() => {
-        cancelAnimationFrame(animationRef.current);
-        const state = searchStateRef.current;
-        state.status = 'idle';
-        setStatus('idle');
-        state.frontier = new MinHeap();
-        state.cameFrom = {};
-        state.costSoFar = {};
-        state.visited = new Set();
-        state.path = [];
-        state.currentCheckingNode = null;
-        setStats({ nodesVisited: 0, pathLength: 0 });
-        draw();
-      }, [draw]);
-
-      const startSearch = useCallback(() => {
-        const state = searchStateRef.current;
-        const { nodes } = graphRef.current;
-
-        if (flagsRef.current.randomNodes && nodes.length > 0) {
-            state.startNode = nodes[Math.floor(Math.random() * nodes.length)];
-            let targetNode = nodes[Math.floor(Math.random() * nodes.length)];
-            while(targetNode.id === state.startNode.id && nodes.length > 1) {
-                targetNode = nodes[Math.floor(Math.random() * nodes.length)];
-            }
-            state.targetNode = targetNode;
-            draw();
+        if(node.id === startNode?.id) {
+          ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(node.x, node.y, 14, 0, Math.PI * 2); ctx.stroke();
         }
+      }
+    }
 
-        if (!state.startNode || !state.targetNode) return;
+    // --- Search Logic ---
+    function heuristic(nodeId, targetId) {
+      const n1 = graph.nodes[nodeId];
+      const n2 = graph.nodes[targetId];
+      return Math.hypot(n1.x - n2.x, n1.y - n2.y);
+    }
 
-        if (state.status === 'idle' || state.status === 'found' || state.status === 'no_path') {
-            state.status = 'running';
-            setStatus('running');
-            state.frontier = new MinHeap();
-            state.frontier.insert({ id: state.startNode.id, priority: 0 });
-            state.cameFrom = { [state.startNode.id]: null };
-            state.costSoFar = { [state.startNode.id]: 0 };
-            state.visited = new Set();
-            state.path = [];
-            state.currentCheckingNode = null;
-            setStats({ nodesVisited: 0, pathLength: 0 });
-        } else if (state.status === 'paused') {
-            state.status = 'running';
-            setStatus('running');
+    function reconstructPath(endId) {
+      let curr = endId;
+      const path = [];
+      let length = 0;
+      while (curr !== null && curr !== undefined) {
+        path.unshift(curr);
+        const parent = searchData.cameFrom[curr];
+        if (parent !== null && parent !== undefined) {
+             const edge = graph.adjList.get(parent).find(e => e.target === curr);
+             if(edge) length += edge.weight;
         }
-        
-        lastStepTimeRef.current = performance.now();
-        animationRef.current = requestAnimationFrame((t) => stepSearchRef.current(t));
-      }, [draw]);
+        curr = parent;
+      }
+      searchData.path = path;
+      state.stats.visited = searchData.visited.size;
+      state.stats.pathLength = Math.round(length);
+      updateUI();
+    }
 
-      useEffect(() => {
-        let timer;
-        if ((status === 'found' || status === 'no_path') && loopForever) {
-            timer = setTimeout(() => {
-                resetSearch();
-                startSearch();
-            }, 1500);
-        }
-        return () => clearTimeout(timer);
-      }, [status, loopForever, resetSearch, startSearch]);
+    function stepSearch(timestamp) {
+      if (!lastStepTime) lastStepTime = timestamp;
 
-      const pauseSearch = () => {
-        searchStateRef.current.status = 'paused';
-        setStatus('paused');
-        cancelAnimationFrame(animationRef.current);
+      let stepsToRun = 0;
+      let shouldRun = false;
+      const speed = state.config.speed;
+
+      if (speed < 50) {
+          const delayMs = (50 - speed) * 30;
+          if (timestamp - lastStepTime >= delayMs) {
+              stepsToRun = 1;
+              shouldRun = true;
+              lastStepTime = timestamp;
+          }
+      } else {
+          stepsToRun = Math.max(1, speed - 49);
+          shouldRun = true;
+      }
+
+      if (shouldRun) {
+          for (let i = 0; i < stepsToRun; i++) {
+              if (searchData.frontier.isEmpty()) {
+                  state.status = 'no_path';
+                  cancelAnimationFrame(animationFrameId);
+                  updateUI();
+                  startLoopTimer();
+                  return;
+              }
+
+              const currentItem = searchData.frontier.extractMin();
+              const current = currentItem.id;
+              searchData.currentCheckingNode = current;
+
+              if (current === searchData.targetNode.id) {
+                  reconstructPath(current);
+                  state.status = 'found';
+                  searchData.currentCheckingNode = null;
+                  cancelAnimationFrame(animationFrameId);
+                  draw();
+                  updateUI();
+                  startLoopTimer();
+                  return;
+              }
+
+              if (searchData.visited.has(current)) continue;
+              searchData.visited.add(current);
+
+              const neighbors = graph.adjList.get(current);
+              if(neighbors) {
+                  for (let next of neighbors) {
+                      if (searchData.visited.has(next.target)) continue;
+
+                      const newCost = searchData.costSoFar[current] + next.weight;
+                      if (!(next.target in searchData.costSoFar) || newCost < searchData.costSoFar[next.target]) {
+                          searchData.costSoFar[next.target] = newCost;
+                          searchData.cameFrom[next.target] = current;
+                          const priority = newCost + (state.algo === 'A*' ? heuristic(next.target, searchData.targetNode.id) : 0);
+                          searchData.frontier.insert({ id: next.target, priority });
+                      }
+                  }
+              }
+          }
+          state.stats.visited = searchData.visited.size;
+          updateUI();
+          draw();
+      }
+      
+      if (state.status === 'running') {
+          animationFrameId = requestAnimationFrame(stepSearch);
+      }
+    }
+
+    function resetSearch() {
+      cancelAnimationFrame(animationFrameId);
+      clearTimeout(loopTimer);
+      state.status = 'idle';
+      searchData.frontier = new MinHeap();
+      searchData.cameFrom = {};
+      searchData.costSoFar = {};
+      searchData.visited = new Set();
+      searchData.path = [];
+      searchData.currentCheckingNode = null;
+      state.stats.visited = 0;
+      state.stats.pathLength = 0;
+      updateUI();
+      draw();
+    }
+
+    function startSearch() {
+      clearTimeout(loopTimer);
+      if (state.randomNodesOnRun && graph.nodes.length > 0) {
+          searchData.startNode = graph.nodes[Math.floor(Math.random() * graph.nodes.length)];
+          let targetNode = graph.nodes[Math.floor(Math.random() * graph.nodes.length)];
+          while(targetNode.id === searchData.startNode.id && graph.nodes.length > 1) {
+              targetNode = graph.nodes[Math.floor(Math.random() * graph.nodes.length)];
+          }
+          searchData.targetNode = targetNode;
+          draw();
+      }
+
+      if (!searchData.startNode || !searchData.targetNode) return;
+
+      if (state.status === 'idle' || state.status === 'found' || state.status === 'no_path') {
+          state.status = 'running';
+          searchData.frontier = new MinHeap();
+          searchData.frontier.insert({ id: searchData.startNode.id, priority: 0 });
+          searchData.cameFrom = { [searchData.startNode.id]: null };
+          searchData.costSoFar = { [searchData.startNode.id]: 0 };
+          searchData.visited = new Set();
+          searchData.path = [];
+          searchData.currentCheckingNode = null;
+          state.stats.visited = 0;
+          state.stats.pathLength = 0;
+      } else if (state.status === 'paused') {
+          state.status = 'running';
+      }
+      
+      updateUI();
+      lastStepTime = performance.now();
+      animationFrameId = requestAnimationFrame(stepSearch);
+    }
+
+    function pauseSearch() {
+      state.status = 'paused';
+      updateUI();
+      cancelAnimationFrame(animationFrameId);
+    }
+
+    function startLoopTimer() {
+      if (state.loopForever && (state.status === 'found' || state.status === 'no_path')) {
+          loopTimer = setTimeout(() => {
+              resetSearch();
+              startSearch();
+          }, 1500);
+      }
+    }
+
+    // --- DOM Interaction ---
+    function updateUI() {
+      document.getElementById('btn-dijkstra').classList.toggle('active', state.algo === 'Dijkstra');
+      document.getElementById('btn-astar').classList.toggle('active', state.algo === 'A*');
+
+      const btnAction = document.getElementById('btn-action');
+      if (state.status === 'idle' || state.status === 'paused' || state.status === 'found' || state.status === 'no_path') {
+          btnAction.className = "w-full py-3 cyber-button text-lg font-bold tracking-widest";
+          btnAction.style.boxShadow = state.status === 'idle' ? '0 0 10px rgba(0, 243, 255, 0.5)' : 'none';
+          btnAction.innerText = state.status === 'paused' ? 'RESUME_SYS()' : (state.status === 'found' || state.status === 'no_path' ? 'RESTART_SYS()' : 'INIT_SEARCH()');
+      } else {
+          btnAction.className = "w-full py-3 cyber-button danger text-lg font-bold tracking-widest";
+          btnAction.style.boxShadow = 'none';
+          btnAction.innerText = 'HALT_EXECUTION()';
+      }
+
+      const isRunning = state.status === 'running';
+      ['btn-dijkstra', 'btn-astar', 'btn-clear', 'range-nodes', 'range-clusters', 'range-intra', 'range-inter', 'btn-regen'].forEach(id => {
+          document.getElementById(id).disabled = isRunning;
+      });
+
+      const sysStatus = document.getElementById('sys-status');
+      sysStatus.innerText = `[${state.status.toUpperCase()}]`;
+      sysStatus.className = `text-sm font-bold ${
+          state.status === 'running' ? 'text-yellow-400 animate-pulse' : 
+          state.status === 'found' ? 'text-[#00ffaa]' : 
+          state.status === 'no_path' ? 'text-[#ff003c]' : 'text-[#00f3ff]'
+      }`;
+
+      document.getElementById('stat-visited').innerText = state.stats.visited.toString().padStart(4, '0');
+      document.getElementById('stat-path').innerText = state.stats.pathLength > 0 ? state.stats.pathLength : '----';
+
+      const speed = state.config.speed;
+      document.getElementById('val-speed').innerText = speed < 50 ? `SLOW (${50 - speed})` : `${speed - 49}x`;
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      
+      document.getElementById('btn-dijkstra').onclick = () => { state.algo = 'Dijkstra'; resetSearch(); };
+      document.getElementById('btn-astar').onclick = () => { state.algo = 'A*'; resetSearch(); };
+      
+      document.getElementById('btn-action').onclick = () => {
+          if (state.status === 'idle' || state.status === 'paused' || state.status === 'found' || state.status === 'no_path') startSearch();
+          else pauseSearch();
       };
+      
+      document.getElementById('btn-clear').onclick = resetSearch;
+      document.getElementById('btn-regen').onclick = generateGraph;
 
-      const handleCanvasClick = (e) => {
-        if (status === 'running') return;
-        
-        const rect = canvasRef.current.getBoundingClientRect();
+      document.getElementById('range-nodes').oninput = (e) => { state.config.nodesCount = parseInt(e.target.value); document.getElementById('val-nodes').innerText = e.target.value; };
+      document.getElementById('range-clusters').oninput = (e) => { state.config.communities = parseInt(e.target.value); document.getElementById('val-clusters').innerText = e.target.value; };
+      document.getElementById('range-intra').oninput = (e) => { state.config.intraProbability = parseFloat(e.target.value); document.getElementById('val-intra').innerText = parseFloat(e.target.value).toFixed(2); };
+      document.getElementById('range-inter').oninput = (e) => { state.config.interProbability = parseFloat(e.target.value); document.getElementById('val-inter').innerText = parseFloat(e.target.value).toFixed(3); };
+      document.getElementById('range-speed').oninput = (e) => { state.config.speed = parseInt(e.target.value); updateUI(); };
+
+      document.getElementById('check-loop').onchange = (e) => { state.loopForever = e.target.checked; startLoopTimer(); };
+      document.getElementById('check-random').onchange = (e) => { state.randomNodesOnRun = e.target.checked; };
+
+      canvas.onclick = (e) => {
+        if (state.status === 'running') return;
+        const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
         let closestNode = null;
         let minDist = Infinity;
-        for (const node of graphRef.current.nodes) {
+        for (const node of graph.nodes) {
             const dist = Math.hypot(node.x - x, node.y - y);
-            if (dist < minDist && dist < 20) {
-                minDist = dist;
-                closestNode = node;
-            }
+            if (dist < minDist && dist < 20) { minDist = dist; closestNode = node; }
         }
 
         if (closestNode) {
-            const state = searchStateRef.current;
-            if (e.shiftKey) {
-                state.startNode = closestNode;
-            } else {
-                state.targetNode = closestNode;
-            }
+            if (e.shiftKey) searchData.startNode = closestNode;
+            else searchData.targetNode = closestNode;
             resetSearch();
         }
       };
 
-      useEffect(() => {
-        generateGraph();
-        return () => cancelAnimationFrame(animationRef.current);
-      }, [generateGraph]);
+      function resize() {
+         const rect = container.getBoundingClientRect();
+         canvas.width = rect.width;
+         canvas.height = rect.height;
+         if (state.status === 'idle' || state.status === 'found' || state.status === 'no_path') generateGraph();
+      }
+      window.addEventListener('resize', resize);
+      resize(); // Initial generation
 
-      useEffect(() => {
-         let glowFrame;
-         const animateGlow = () => {
-             if (status !== 'running') {
-                draw();
-             }
-             glowFrame = requestAnimationFrame(animateGlow);
-         };
-         animateGlow();
-         return () => cancelAnimationFrame(glowFrame);
-      }, [draw, status]);
-
-      // STYLES EXTRACTED TO AVOID JEKYLL TEMPLATE ERRORS
-      const buttonDynamicStyle = { boxShadow: status === 'idle' ? '0 0 10px rgba(0, 243, 255, 0.5)' : 'none' };
-      const sliderGlowStyle = { boxShadow: '0 0 5px rgba(253, 253, 150, 0.5)' };
-      const crtOverlayStyle = {
-         background: 'radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%)',
-         boxShadow: 'inset 0 0 100px rgba(0,0,0,0.9)'
-      };
-
-      return (
-        <div className="flex h-screen w-full bg-[#020205] text-[#00f3ff] cyberpunk-font overflow-hidden relative selection:bg-[#ff003c] selection:text-white">
-          <style>{styles}</style>
-          <div className="scanline"></div>
-
-          {/* Control Panel (Left) */}
-          <div className="w-80 h-full p-6 flex flex-col gap-6 cyber-panel relative z-10 overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#00f3ff]/30 pb-4">
-              <h1 className="text-3xl font-bold cyber-title text-white tracking-widest">NET_WALKER</h1>
-              <span className="text-xs bg-[#00f3ff]/20 px-2 py-1 rounded border border-[#00f3ff]/50">v2.0.4</span>
-            </div>
-
-            {/* Algorithm Selection */}
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-gray-400 uppercase tracking-widest">Protocol</span>
-              <div className="flex gap-2">
-                {['Dijkstra', 'A*'].map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => { setAlgo(a); resetSearch(); }}
-                    disabled={status === 'running'}
-                    className={`flex-1 py-2 text-sm font-bold cyber-button ${algo === a ? 'active' : ''}`}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Action Controls */}
-            <div className="flex flex-col gap-2">
-               <span className="text-sm text-gray-400 uppercase tracking-widest">Execution</span>
-                {status === 'idle' || status === 'paused' || status === 'found' || status === 'no_path' ? (
-                    <button onClick={startSearch} className="w-full py-3 cyber-button text-lg font-bold tracking-widest"
-                            style={buttonDynamicStyle}>
-                      {status === 'paused' ? 'RESUME_SYS()' : status==='found' || status==='no_path' ? 'RESTART_SYS()' : 'INIT_SEARCH()'}
-                    </button>
-                ) : (
-                    <button onClick={pauseSearch} className="w-full py-3 cyber-button danger text-lg font-bold tracking-widest">
-                      HALT_EXECUTION()
-                    </button>
-                )}
-                <button onClick={resetSearch} disabled={status === 'running'} className="w-full py-2 cyber-button text-sm">
-                    CLEAR_MEMORY()
-                </button>
-            </div>
-
-            {/* Status Screen */}
-            <div className="bg-[#050510] border border-[#00f3ff]/30 p-4 relative">
-                <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#00f3ff]"></div>
-                <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#00f3ff]"></div>
-                
-                <div className="flex justify-between items-end mb-2">
-                    <span className="text-xs text-gray-500 uppercase">SYS_STATUS</span>
-                    <span className={`text-sm font-bold ${
-                        status === 'running' ? 'text-yellow-400 animate-pulse' : 
-                        status === 'found' ? 'text-[#00ffaa]' : 
-                        status === 'no_path' ? 'text-[#ff003c]' : 'text-[#00f3ff]'
-                    }`}>
-                        [{status.toUpperCase()}]
-                    </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">NODES_VISITED:</span>
-                    <span className="font-mono text-white">{stats.nodesVisited.toString().padStart(4, '0')}</span>
-                </div>
-                <div className="flex justify-between text-sm mt-1">
-                    <span className="text-gray-400">PATH_LENGTH:</span>
-                    <span className="font-mono text-[#00ffaa]">{stats.pathLength > 0 ? stats.pathLength : '----'}</span>
-                </div>
-            </div>
-
-            {/* Graph Parameters */}
-            <div className="flex flex-col gap-4 flex-grow border-t border-[#00f3ff]/30 pt-4">
-              <span className="text-sm text-gray-400 uppercase tracking-widest">Topology_Params</span>
-              
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs">
-                  <span>NODES [N]</span>
-                  <span className="text-white">{config.nodesCount}</span>
-                </div>
-                <input type="range" min="50" max="800" step="10" value={config.nodesCount}
-                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {nodesCount: parseInt(e.target.value)}))}
-                       disabled={status === 'running'} className="cyber-slider" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs">
-                  <span>CLUSTERS [C]</span>
-                  <span className="text-white">{config.communities}</span>
-                </div>
-                <input type="range" min="1" max="10" value={config.communities}
-                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {communities: parseInt(e.target.value)}))}
-                       disabled={status === 'running'} className="cyber-slider" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs">
-                  <span>INTRA_LINK_PROB</span>
-                  <span className="text-white">{config.intraProbability.toFixed(2)}</span>
-                </div>
-                <input type="range" min="0.05" max="0.5" step="0.01" value={config.intraProbability}
-                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {intraProbability: parseFloat(e.target.value)}))}
-                       disabled={status === 'running'} className="cyber-slider" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs">
-                  <span>INTER_LINK_PROB</span>
-                  <span className="text-white">{config.interProbability.toFixed(3)}</span>
-                </div>
-                <input type="range" min="0" max="0.1" step="0.005" value={config.interProbability}
-                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {interProbability: parseFloat(e.target.value)}))}
-                       disabled={status === 'running'} className="cyber-slider" />
-              </div>
-
-              <div className="flex flex-col gap-1 mt-4">
-                <div className="flex justify-between text-xs text-[#fdfd96]">
-                  <span>OVERCLOCK_SPEED</span>
-                  <span>{config.speed < 50 ? `SLOW (${50 - config.speed})` : `${config.speed - 49}x`}</span>
-                </div>
-                <input type="range" min="1" max="100" value={config.speed}
-                       onChange={(e) => setConfig(prev => Object.assign({}, prev, {speed: parseInt(e.target.value)}))}
-                       className="cyber-slider" style={sliderGlowStyle}/>
-              </div>
-
-              <div className="flex flex-col gap-2 mt-2">
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input type="checkbox" checked={loopForever} onChange={e => setLoopForever(e.target.checked)} className="cyber-checkbox" />
-                  <span className="text-gray-300">AUTO_RESTART_LOOP</span>
-                </label>
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input type="checkbox" checked={randomNodesOnRun} onChange={e => setRandomNodesOnRun(e.target.checked)} className="cyber-checkbox" />
-                  <span className="text-gray-300">RANDOM_NODES_ON_EXEC</span>
-                </label>
-              </div>
-              
-              <button onClick={generateGraph} disabled={status === 'running'} 
-                      className="w-full py-2 mt-2 cyber-button border-dashed text-xs tracking-widest">
-                 REGENERATE_TOPOLOGY()
-              </button>
-            </div>
-
-            <div className="text-[10px] text-gray-600 uppercase mt-auto text-center border-t border-[#00f3ff]/20 pt-2">
-                L-CLICK: Set Target Node<br/>
-                SHIFT + L-CLICK: Set Source Node
-            </div>
-          </div>
-
-          {/* Main Canvas Area */}
-          <div className="flex-grow relative cursor-crosshair" ref={containerRef} onClick={handleCanvasClick}>
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 w-full h-full"
-            />
-            {/* CRT Overlay Effect */}
-            <div className="absolute inset-0 pointer-events-none" style={crtOverlayStyle}>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Render the React app
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+      function animateGlow() {
+         if (state.status !== 'running') draw();
+         requestAnimationFrame(animateGlow);
+      }
+      animateGlow();
+    });
   </script>
 </body>
 </html>
