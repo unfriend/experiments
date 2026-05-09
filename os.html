@@ -1,0 +1,561 @@
+---
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holo-Directory v2.0</title>
+    <style>
+        /* --- Futuristic Reset & Variables --- */
+        :root {
+            --bg-dark: #020304; /* Much darker background */
+            --neon-cyan: #00e5ff;
+            --neon-pink: #ff0055;
+            --neon-yellow: #e5d900;
+            --cyber-gray: #0a0b10; /* Deep dark gray for window bodies */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+        }
+
+        body, html {
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            color: #e0eaff;
+            color-scheme: dark; /* Helps scrollbars and native elements go dark */
+        }
+
+        /* Animated Grid Background */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 200%; height: 200%;
+            background-image:
+                linear-gradient(rgba(0, 243, 255, 0.07) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.07) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: gridMove 20s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(40px) translateZ(-200px); }
+        }
+
+        /* --- Desktop Area --- */
+        #desktop {
+            position: relative;
+            width: 100%;
+            height: calc(100% - 70px);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 25px;
+        }
+
+        /* --- Holographic Icons --- */
+        .desktop-icon {
+            width: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .desktop-icon:hover {
+            transform: translateY(-5px) scale(1.05);
+        }
+
+        .icon-img {
+            width: 48px;
+            height: 48px;
+            border-radius: 0;
+            background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(255,0,127,0.1));
+            border: 2px solid var(--neon-cyan);
+            box-shadow: 4px 4px 0px rgba(0, 243, 255, 0.2);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+
+        .icon-img::before {
+            content: '/>';
+            color: var(--neon-cyan);
+            font-weight: 900;
+            font-family: monospace;
+            font-size: 18px;
+            text-shadow: 0 0 5px var(--neon-cyan);
+        }
+
+        .desktop-icon:hover .icon-img {
+            box-shadow: 6px 6px 0px var(--neon-cyan);
+            background: linear-gradient(135deg, rgba(0,243,255,0.2), rgba(255,0,127,0.2));
+            border-color: var(--neon-pink);
+        }
+
+        .icon-text {
+            font-size: 12px;
+            font-weight: 500;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            text-align: center;
+            word-wrap: break-word;
+            max-width: 100%;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- Floating Dock (Taskbar) --- */
+        #taskbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            height: 50px;
+            background: var(--cyber-gray);
+            border: 1px solid var(--neon-cyan);
+            border-bottom: 2px solid var(--neon-pink);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 12px;
+            z-index: 9999;
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.9);
+            /* Sci-fi top bevels */
+            clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 0 100%, 0 15px);
+        }
+
+        #taskbar-windows {
+            flex-grow: 1;
+            display: flex;
+            gap: 8px;
+            max-width: 600px;
+            overflow-x: auto;
+        }
+
+        /* Hide scrollbar for taskbar items */
+        #taskbar-windows::-webkit-scrollbar { display: none; }
+
+        .taskbar-item {
+            background: transparent;
+            border: 1px solid var(--neon-cyan);
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            max-width: 140px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--neon-cyan);
+            text-transform: uppercase;
+            clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+        }
+
+        .taskbar-item.active {
+            background: rgba(255, 0, 85, 0.2);
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+
+        #clock {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 14px;
+            color: var(--neon-yellow);
+            padding-left: 12px;
+            border-left: 2px dashed rgba(255,255,255,0.2);
+        }
+
+        /* --- Cyberpunk Windows --- */
+        .window {
+            position: absolute;
+            width: 600px;
+            height: 400px;
+            min-width: 300px;
+            min-height: 200px;
+            background: var(--cyber-gray);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.9);
+            /* Added smooth transition for maximizing */
+            transition: border-color 0.2s, top 0.2s, left 0.2s, width 0.2s, height 0.2s;
+            /* Changed clip path to preserve the bottom-right corner for the resizer */
+            clip-path: polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 calc(100% - 20px), 0 20px);
+        }
+
+        .window.maximized {
+            clip-path: none; /* Full rectangle when maximized */
+            border-width: 2px;
+        }
+
+        /* Disable animation during drag and resize to prevent lag */
+        .window.is-dragging, 
+        .window.is-resizing {
+            transition: none;
+        }
+
+        .window:focus-within, .window:active {
+            border-color: var(--neon-pink);
+        }
+
+        .title-bar {
+            background: #0d0f16;
+            border-bottom: 1px solid var(--neon-cyan);
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--neon-cyan);
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .title-bar.inactive {
+            background: #050608;
+            color: #555;
+            border-bottom: 1px solid #333;
+        }
+
+        .title-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .ctrl-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 0;
+            border: 1px solid var(--neon-cyan);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            text-decoration: none;
+            color: var(--neon-cyan);
+            background: transparent;
+            transition: 0.1s;
+        }
+
+        .title-bar.inactive .ctrl-btn {
+            border-color: #444;
+            color: #444;
+        }
+
+        .ctrl-btn:hover {
+            background: var(--neon-cyan);
+            color: #000;
+        }
+
+        .close-btn {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+        
+        .title-bar.inactive .close-btn {
+            border-color: #444;
+            color: #444;
+        }
+
+        .close-btn:hover {
+            background: var(--neon-pink);
+            color: #000;
+            border-color: var(--neon-pink);
+        }
+
+        .window-content {
+            flex-grow: 1;
+            position: relative;
+            background: var(--cyber-gray); /* Darken content area */
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background: transparent; /* Makes standard HTML flow with the dark theme */
+            color-scheme: dark; /* Suggests to the browser to render defaults in dark mode */
+        }
+
+        .window.is-dragging iframe, 
+        .window.is-resizing iframe {
+            pointer-events: none;
+        }
+
+        /* --- Resizing Grip --- */
+        .resize-handle {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 20px;
+            height: 20px;
+            cursor: se-resize;
+            z-index: 10;
+            /* Creates a cool tech triangle */
+            background: linear-gradient(135deg, transparent 50%, var(--neon-cyan) 50%);
+            transition: 0.2s;
+        }
+
+        .window:focus-within .resize-handle, 
+        .window:active .resize-handle {
+            background: linear-gradient(135deg, transparent 50%, var(--neon-pink) 50%);
+        }
+
+        .resize-handle:hover {
+            opacity: 1;
+            filter: brightness(1.5);
+        }
+
+        /* Hide resize handle when fullscreen */
+        .window.maximized .resize-handle {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="desktop">
+        <!-- Loop 1: Jekyll Pages -->
+        {% for page in site.html_pages %}
+            {% if page.url != "/" %}
+            <div class="desktop-icon" ondblclick="openWindow('{{ site.baseurl }}{{ page.url }}', '{{ page.name }}')">
+                <div class="icon-img"></div>
+                <div class="icon-text">{{ page.name }}</div>
+            </div>
+            {% endif %}
+        {% endfor %}
+
+        <!-- Loop 2: Static Files -->
+        {% for file in site.static_files %}
+            {% if file.extname == '.html' %}
+            <div class="desktop-icon" ondblclick="openWindow('{{ site.baseurl }}{{ file.path }}', '{{ file.name }}')">
+                <div class="icon-img"></div>
+                <div class="icon-text">{{ file.name }}</div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Taskbar / Dock -->
+    <div id="taskbar">
+        <div id="taskbar-windows"></div>
+        <div id="clock">00:00 AM</div>
+    </div>
+
+    <script>
+        let zIndexCounter = 100;
+        let openWindowsCount = 0;
+
+        // --- Clock ---
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; 
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            document.getElementById('clock').innerText = hours + ':' + minutes + ' ' + ampm;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // --- Window Manager ---
+        function openWindow(url, title) {
+            openWindowsCount++;
+            const winId = 'win-' + Date.now();
+            
+            const win = document.createElement('div');
+            win.className = 'window';
+            win.id = winId;
+            win.style.zIndex = ++zIndexCounter;
+            
+            const offset = (openWindowsCount % 10) * 30;
+            win.style.top = (80 + offset) + 'px';
+            win.style.left = (80 + offset) + 'px';
+
+            // New Title Bar includes an <a> tag targeting "_blank"
+            win.innerHTML = `
+                <div class="title-bar" id="${winId}-title">
+                    <span>${title}</span>
+                    <div class="title-controls">
+                        <button class="ctrl-btn" title="Maximize window" onclick="toggleMaximize('${winId}')">☐</button>
+                        <a href="${url}" target="_blank" class="ctrl-btn popout-btn" title="Open in new tab">↗</a>
+                        <button class="ctrl-btn close-btn" title="Close window" onclick="closeWindow('${winId}')">✕</button>
+                    </div>
+                </div>
+                <div class="window-content">
+                    <iframe src="${url}"></iframe>
+                </div>
+                <div class="resize-handle" id="${winId}-resize"></div>
+            `;
+
+            win.addEventListener('mousedown', () => bringToFront(winId));
+            
+            document.getElementById('desktop').appendChild(win);
+            createTaskbarItem(winId, title);
+            
+            const titleBar = document.getElementById(`${winId}-title`);
+            makeDraggable(win, titleBar);
+            makeResizable(win, document.getElementById(`${winId}-resize`));
+            
+            // Double click to maximize
+            titleBar.addEventListener('dblclick', function(e) {
+                if (e.target.closest('.ctrl-btn')) return; // Ignore if clicking a button
+                toggleMaximize(winId);
+            });
+        }
+
+        function toggleMaximize(winId) {
+            const win = document.getElementById(winId);
+            if (!win) return;
+            
+            if (win.classList.contains('maximized')) {
+                // Restore
+                win.classList.remove('maximized');
+                win.style.top = win.dataset.prevTop;
+                win.style.left = win.dataset.prevLeft;
+                win.style.width = win.dataset.prevWidth;
+                win.style.height = win.dataset.prevHeight;
+            } else {
+                // Maximize
+                win.dataset.prevTop = win.style.top;
+                win.dataset.prevLeft = win.style.left;
+                win.dataset.prevWidth = win.style.width || '600px';
+                win.dataset.prevHeight = win.style.height || '400px';
+                
+                win.classList.add('maximized');
+                win.style.top = '0px';
+                win.style.left = '0px';
+                win.style.width = '100%';
+                win.style.height = 'calc(100% - 70px)'; 
+                
+                bringToFront(winId);
+            }
+        }
+
+        function closeWindow(winId) {
+            document.getElementById(winId).remove();
+            document.getElementById('task-' + winId).remove();
+            openWindowsCount--;
+        }
+
+        function bringToFront(winId) {
+            const win = document.getElementById(winId);
+            if(win) win.style.zIndex = ++zIndexCounter;
+            
+            document.querySelectorAll('.title-bar').forEach(tb => tb.classList.add('inactive'));
+            const activeTitleBar = document.getElementById(winId + '-title');
+            if(activeTitleBar) activeTitleBar.classList.remove('inactive');
+
+            document.querySelectorAll('.taskbar-item').forEach(tb => tb.classList.remove('active'));
+            const taskBtn = document.getElementById('task-' + winId);
+            if(taskBtn) taskBtn.classList.add('active');
+        }
+
+        function createTaskbarItem(winId, title) {
+            const taskbarTasks = document.getElementById('taskbar-windows');
+            const taskBtn = document.createElement('div');
+            taskBtn.className = 'taskbar-item active';
+            taskBtn.id = 'task-' + winId;
+            taskBtn.innerText = title;
+            taskBtn.onclick = () => bringToFront(winId);
+            
+            document.querySelectorAll('.taskbar-item').forEach(tb => tb.classList.remove('active'));
+            taskbarTasks.appendChild(taskBtn);
+        }
+
+        // --- Dragging Logic ---
+        function makeDraggable(elmnt, titleBar) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            titleBar.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                // Safeguard: Don't drag if clicking the control buttons (close/popout)
+                if (e.target.closest('.ctrl-btn')) return;
+                
+                // Prevent dragging if the window is currently maximized
+                if (elmnt.classList.contains('maximized')) return;
+
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+                bringToFront(elmnt.id);
+                elmnt.classList.add('is-dragging'); 
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+                elmnt.classList.remove('is-dragging');
+            }
+        }
+
+        // --- Resizing Logic ---
+        function makeResizable(elmnt, resizer) {
+            let startX, startY, startWidth, startHeight;
+
+            resizer.addEventListener('mousedown', function(e) {
+                if (elmnt.classList.contains('maximized')) return;
+
+                e.preventDefault();
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = parseInt(document.defaultView.getComputedStyle(elmnt).width, 10);
+                startHeight = parseInt(document.defaultView.getComputedStyle(elmnt).height, 10);
+                
+                document.documentElement.addEventListener('mousemove', doDrag, false);
+                document.documentElement.addEventListener('mouseup', stopDrag, false);
+                
+                bringToFront(elmnt.id);
+                elmnt.classList.add('is-resizing'); 
+            });
+
+            function doDrag(e) {
+                elmnt.style.width = (startWidth + e.clientX - startX) + 'px';
+                elmnt.style.height = (startHeight + e.clientY - startY) + 'px';
+            }
+
+            function stopDrag() {
+                document.documentElement.removeEventListener('mousemove', doDrag, false);
+                document.documentElement.removeEventListener('mouseup', stopDrag, false);
+                elmnt.classList.remove('is-resizing');
+            }
+        }
+    </script>
+</body>
+</html>
