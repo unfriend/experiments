@@ -200,6 +200,10 @@
     let visualsDirty = true;
 
     function markVisualsDirty() { visualsDirty = true; }
+    function clusterHue(clusterId, clusterCount) {
+      if (clusterCount <= 1) return 0.55;
+      return 0.1 + (clusterId / (clusterCount - 1)) * 0.8;
+    }
 
     init();
     animate();
@@ -317,7 +321,7 @@
           center.z + r * Math.sin(phi) * Math.sin(theta)
         );
         const mat = new THREE.MeshStandardMaterial({
-          color: new THREE.Color().setHSL((cluster / Math.max(1, c)) * 0.8 + 0.1, 0.8, 0.55),
+          color: new THREE.Color().setHSL(clusterHue(cluster, c), 0.8, 0.55),
           emissive: 0x04111c, roughness: 0.35, metalness: 0.55
         });
         const mesh = new THREE.Mesh(sphere, mat);
@@ -370,7 +374,12 @@
       let queueIndex = 0;
       while (queueIndex < q.length) {
         const curr = q[queueIndex++];
-        for (const n of graph.adjList.get(curr)) if (!seen.has(n.target)) { seen.add(n.target); q.push(n.target); }
+        for (const n of graph.adjList.get(curr)) {
+          if (!seen.has(n.target)) {
+            seen.add(n.target);
+            q.push(n.target);
+          }
+        }
       }
       if (seen.size === graph.nodes.length) return;
       for (let i = 0; i < graph.nodes.length; i++) {
@@ -544,7 +553,7 @@
         } else if (searchData.visited.has(node.id)) {
           color.setHex(COLORS.visited); emissive.setHex(0x1d0b2a); scale = 1.15;
         } else {
-          color.setHSL((node.cluster / Math.max(1, state.config.communities)) * 0.8 + 0.1, 0.8, 0.55);
+          color.setHSL(clusterHue(node.cluster, state.config.communities), 0.8, 0.55);
           emissive.setHex(0x04111c);
         }
         node.mesh.scale.setScalar(scale);
@@ -565,7 +574,7 @@
       byId('stat-path').textContent = state.stats.pathLength > 0 ? String(state.stats.pathLength) : '----';
       byId('stat-size').textContent = `${graph.nodes.length} / ${graph.edges.length}`;
       byId('val-speed').textContent = state.config.speed < SPEED_MODE.slowFastThreshold
-        ? `SLOW (${SPEED_MODE.slowFastThreshold - state.config.speed})`
+        ? `SLOW (DELAY ${SPEED_MODE.slowFastThreshold - state.config.speed})`
         : `${state.config.speed - SPEED_MODE.fastModeDisplayOffset}x`;
 
       const status = byId('sys-status');
