@@ -176,6 +176,8 @@
       start: 0x00f3ff, target: 0xff003c, checking: 0xfdfd96, visited: 0x9c27b0,
       pathNode: 0x00ffaa, pathEdge: 0x00ffaa, treeEdge: 0x673ab7
     };
+    const GRAPH_SHAPE = { clusterNodeRadiusMin: 4, clusterNodeRadiusRange: 22 };
+    const SEARCH_TIMING = { slowStepMultiplier: 0.028, slowStepBaseSeconds: 0.012 };
 
     const canvas = document.getElementById('three-canvas');
     const root = document.getElementById('canvas-root');
@@ -297,7 +299,7 @@
         const center = centers[cluster];
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const r = 4 + Math.random() * 22;
+        const r = GRAPH_SHAPE.clusterNodeRadiusMin + Math.random() * GRAPH_SHAPE.clusterNodeRadiusRange;
         const pos = new THREE.Vector3(
           center.x + r * Math.sin(phi) * Math.cos(theta),
           center.y + r * Math.cos(phi),
@@ -592,7 +594,7 @@
       if (state.status === 'running') {
         const speed = state.config.speed;
         if (speed < 50) {
-          const interval = ((50 - speed) * 0.028) + 0.012;
+          const interval = ((50 - speed) * SEARCH_TIMING.slowStepMultiplier) + SEARCH_TIMING.slowStepBaseSeconds;
           searchAccumulator += dt;
           if (searchAccumulator >= interval) {
             searchAccumulator = 0;
