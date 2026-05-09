@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hacker News Live Cloud</title>
+    <style>
+        :root {
+            /* Default Matrix Theme Variables */
+            --bg-color: #000000;
+            --text-color: #00ff41; /* Cyberpunk Green */
+            --highlight: #ccffcc;
+            --dim-text: #003b00;
+            --link-hover: #ffffff;
+            --shadow-color: rgba(0, 255, 65, 0.5);
+            --hot-shadow: rgba(0, 255, 65, 0.5);
+            --border-color: #00ff41;
+        }
+
+        /* 2. Vaporwave Theme */
+        body.theme-vaporwave {
+            --bg-color: transparent; 
+            --text-color: #002b36; 
+            --highlight: #002b36; 
+            --dim-text: #002b36;   
+            --link-hover: #dc322f; 
+            --shadow-color: rgba(255, 255, 255, 0.6); 
+            --hot-shadow: rgba(255, 255, 255, 0.8);
+            --border-color: #2aa198;
+
+            background: linear-gradient(270deg, #6c71c4, #ff71ce, #2aa198, #01cdfe);
+            background-size: 800% 800%;
+            animation: vaporFlow 120s ease infinite;
+        }
+
+        body.theme-vaporwave .cloud-item {
+            text-shadow: 0 0 5px rgba(238, 232, 213, 0.8); 
+            font-weight: 600; 
+        }
+
+        /* 3. Outrun Theme */
+        body.theme-outrun {
+            --bg-color: #0d0221; 
+            --text-color: #ffffff; 
+            --highlight: #ffffff; /* Explicitly white */
+            --dim-text: #e0e0e0;   /* Slightly dimmed white */
+            --link-hover: #ff71ce; 
+            --shadow-color: rgba(1, 205, 254, 0.6); 
+            --hot-shadow: rgba(255, 255, 255, 0.9);
+            --border-color: #ff71ce;
+            
+            background-color: #0d0221;
+        }
+
+        body.theme-outrun .cloud-item {
+            text-shadow: 0 0 5px rgba(1, 205, 254, 0.8);
+            font-weight: 500;
+        }
+        
+        body.theme-outrun .cloud-item.hot {
+             color: #ffffff;
+             text-shadow: 0 0 10px #ff71ce, 0 0 20px #ff71ce;
+        }
+
+        /* 4. Network Theme (Updated: Unified Blue + Dynamic BG) */
+        body.theme-network {
+            --bg-color: transparent; /* Show gradient */
+            --text-color: #00f3ff;   /* Unified Neon Blue */
+            --highlight: #00f3ff;    
+            --dim-text: #00f3ff;     
+            --link-hover: #ffffff;
+            --shadow-color: rgba(0, 243, 255, 0.4);
+            --hot-shadow: rgba(0, 243, 255, 0.8);
+            --border-color: #00f3ff;
+            
+            /* Dynamic Deep Space Gradient */
+            background: linear-gradient(45deg, #000000, #05051a, #001f3f, #000000);
+            background-size: 400% 400%;
+            animation: networkGradient 60s ease infinite;
+        }
+
+        @keyframes vaporFlow {
+            0%{background-position:0% 50%}
+            50%{background-position:100% 50%}
+            100%{background-position:0% 50%}
+        }
+
+        @keyframes networkGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; 
+            background-color: var(--bg-color);
+            font-family: 'Courier New', Courier, monospace;
+            transition: background-color 0.5s ease;
+        }
+
+        /* Shared Background Canvas */
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none; 
+            transition: opacity 0.5s ease;
+        }
+
+        #canvas {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 1; 
+        }
+
+        .cloud-item {
+            position: absolute;
+            text-decoration: none;
+            color: var(--text-color);
+            line-height: 1.1;
+            white-space: nowrap;
+            transition: left 0.8s ease-in-out, top 0.8s ease-in-out, opacity 0.5s ease, color 0.5s ease, text-shadow 0.5s ease;
+            opacity: 0; 
+            cursor: pointer;
+            z-index: 10;
+            padding: 2px 5px;
+            border-radius: 2px;
+            background: transparent;
+            text-shadow: 0 0 4px var(--shadow-color);
+        }
+
+        .cloud-item:hover {
+            color: #000;
+            background: var(--text-color);
+            z-index: 100;
+            box-shadow: 0 0 15px var(--text-color);
+            transition: none; 
+        }
+
+        body.theme-vaporwave .cloud-item:hover {
+            color: #fdf6e3; 
+            background: #002b36; 
+            box-shadow: 0 0 15px #2aa198;
+        }
+
+        body.theme-outrun .cloud-item:hover {
+            color: #0d0221;
+            background: #ffffff;
+            box-shadow: 0 0 15px #ff71ce;
+        }
+
+        body.theme-network .cloud-item:hover {
+            color: #0b1021;
+            background: #00f3ff;
+            box-shadow: 0 0 15px #00f3ff;
+        }
+
+        .cloud-item.hot {
+            color: var(--highlight);
+            font-weight: bold;
+            text-shadow: 0 0 8px var(--hot-shadow);
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+    <div id="canvas"></div>
+    
+    <script>
+        // --- Configuration ---
+        const HN_API_BASE = 'https://hacker-news.firebaseio.com/v0';
+        const UPDATE_INTERVAL_MS = 10000; 
+        const STORIES_LIMIT = 30; 
+        const GLITCH_CHARS = '!<>-_\\/[]{}—=+*^?#01';
+        
+        // --- State ---
+        const state = {
+            stories: [], 
+            isFetching: false,
+            theme: 'vaporwave', 
+            animFrameId: null
+        };
+
+        const canvas = document.getElementById('canvas');
+        const bgCanvas = document.getElementById('bg-canvas');
+
+        // --- Theme Logic ---
+        function changeTheme(themeName) {
+            state.theme = themeName;
+            const body = document.body;
+            
+            // Reset classes
+            body.classList.remove('theme-matrix', 'theme-vaporwave', 'theme-outrun', 'theme-network');
+            
+            // Add active class
+            if (themeName === 'matrix') {
+                body.classList.add('theme-matrix');
+                bgCanvas.style.opacity = '1';
+            } else if (themeName === 'vaporwave') {
+                body.classList.add('theme-vaporwave');
+                bgCanvas.style.opacity = '0'; 
+            } else if (themeName === 'outrun') {
+                body.classList.add('theme-outrun');
+                bgCanvas.style.opacity = '1'; 
+            } else if (themeName === 'network') {
+                body.classList.add('theme-network');
+                bgCanvas.style.opacity = '1';
+            }
+        }
+
+        // --- BACKGROUND GRAPHICS ENGINE ---
+        function initBackgrounds() {
+            const ctx = bgCanvas.getContext("2d");
+            
+            // Matrix Config
+            const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+            const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            const chars = (katakana + latin).split("");
+            const fontSize = 14;
+            let drops = [];
+
+            // Outrun Config
+            let roadOffset = 0;
+            let mountainOffset = 0;
+            const mountains = [];
+            for(let i=0; i<20; i++) {
+                mountains.push({
+                    x: i * 150,
+                    height: 100 + Math.random() * 150,
+                    width: 150 + Math.random() * 100
+                });
+            }
+
+            // Network Config
+            let nodes = [];
+            const NODE_COUNT = 60;
+            const CONNECT_DISTANCE = 150;
+
+            function initNodes() {
+                nodes = [];
+                for(let i=0; i<NODE_COUNT; i++) {
+                    nodes.push({
+                        x: Math.random() * bgCanvas.width,
+                        y: Math.random() * bgCanvas.height,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5,
+                        radius: Math.random() * 2 + 1
+                    });
+                }
+            }
+
+            function resize() {
+                bgCanvas.width = window.innerWidth;
+                bgCanvas.height = window.innerHeight;
+                
+                // Reset Matrix drops
+                const columns = bgCanvas.width / fontSize;
+                drops = [];
+                for (let x = 0; x < columns; x++) drops[x] = 1; 
+
+                // Reset Network
+                initNodes();
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            function drawMatrix() {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+                ctx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+                ctx.fillStyle = "#004400"; 
+                ctx.font = fontSize + "px monospace";
+
+                for (let i = 0; i < drops.length; i++) {
+                    const text = chars[Math.floor(Math.random() * chars.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+                    if (drops[i] * fontSize > bgCanvas.height && Math.random() > 0.975)
+                        drops[i] = 0;
+
+                    drops[i]++;
+                }
+            }
+
+            function drawOutrun() {
+                const w = bgCanvas.width;
+                const h = bgCanvas.height;
+                const horizon = h * 0.55;
+
+                // 1. Sky
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
+                skyGrad.addColorStop(0, "#0d0221");
+                skyGrad.addColorStop(1, "#541344");
+                ctx.fillStyle = skyGrad;
+                ctx.fillRect(0, 0, w, horizon);
+
+                // 2. Sun
+                const sunX = w / 2;
+                const sunY = horizon - 50;
+                const sunRadius = 150;
+                
+                ctx.shadowBlur = 40;
+                ctx.shadowColor = "#ff71ce";
+                
+                ctx.fillStyle = "#ffcc00"; 
+                ctx.beginPath();
+                ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+                
+                const sunGrad = ctx.createLinearGradient(sunX, sunY - sunRadius, sunX, sunY + sunRadius);
+                sunGrad.addColorStop(0, "#ffeb3b");
+                sunGrad.addColorStop(0.5, "#ff9800");
+                sunGrad.addColorStop(1, "#f44336");
+                ctx.fillStyle = sunGrad;
+                ctx.fill();
+                ctx.shadowBlur = 0; 
+
+                // Sun stripes
+                ctx.fillStyle = "#541344"; 
+                for(let y = sunY - 40; y < sunY + sunRadius; y += 15) {
+                    if (y > sunY - 40) {
+                        const height = (y - (sunY-50)) / 10;
+                        ctx.fillRect(sunX - sunRadius, y, sunRadius*2, height);
+                    }
+                }
+
+                // 3. Mountains
+                ctx.fillStyle = "#140c1c";
+                ctx.strokeStyle = "#01cdfe";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, horizon);
+                
+                mountainOffset = (mountainOffset + 0.5) % 3000; 
+                
+                for(let pass=0; pass<2; pass++) {
+                    let currentX = -(mountainOffset) + (pass * 3000); 
+                    mountains.forEach(m => {
+                        ctx.lineTo(currentX + (m.width/2), horizon - m.height);
+                        ctx.lineTo(currentX + m.width, horizon);
+                        currentX += m.width;
+                    });
+                }
+                
+                ctx.lineTo(w, horizon);
+                ctx.fill();
+                ctx.stroke();
+
+                // 4. Ground
+                const groundGrad = ctx.createLinearGradient(0, horizon, 0, h);
+                groundGrad.addColorStop(0, "#19001e");
+                groundGrad.addColorStop(1, "#000000");
+                ctx.fillStyle = groundGrad;
+                ctx.fillRect(0, horizon, w, h - horizon);
+
+                // Grid
+                ctx.strokeStyle = "rgba(255, 113, 206, 0.4)"; 
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                const cx = w / 2;
+                for (let i = -10000; i < 10000; i += 200) {
+                    const bottomX = cx + i;
+                    ctx.moveTo(cx, horizon);
+                    ctx.lineTo(bottomX, h);
+                }
+
+                roadOffset = (roadOffset + 1.5) % 100;
+                for(let i=0; i<20; i++) {
+                    const progress = (i + (roadOffset/100)) / 20; 
+                    const y = horizon + Math.pow(progress, 3) * (h - horizon);
+                    ctx.globalAlpha = progress;
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(w, y);
+                }
+                ctx.globalAlpha = 1.0;
+                ctx.stroke();
+            }
+
+            function drawNetwork() {
+                const w = bgCanvas.width;
+                const h = bgCanvas.height;
+
+                ctx.clearRect(0, 0, w, h);
+                // Background color handled by CSS body background animation
+
+                ctx.fillStyle = "#00f3ff"; // Match blue text
+                ctx.strokeStyle = "rgba(0, 243, 255, 0.2)"; // Match blue text
+                ctx.lineWidth = 1;
+
+                // Update and draw nodes
+                nodes.forEach(node => {
+                    node.x += node.vx;
+                    node.y += node.vy;
+
+                    // Bounce
+                    if(node.x < 0 || node.x > w) node.vx *= -1;
+                    if(node.y < 0 || node.y > h) node.vy *= -1;
+
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.radius, 0, Math.PI*2);
+                    ctx.fill();
+                });
+
+                // Connect nodes
+                for(let i=0; i<nodes.length; i++) {
+                    for(let j=i+1; j<nodes.length; j++) {
+                        const dx = nodes[i].x - nodes[j].x;
+                        const dy = nodes[i].y - nodes[j].y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+
+                        if(dist < CONNECT_DISTANCE) {
+                            ctx.beginPath();
+                            // Opacity based on distance
+                            const opacity = 1 - (dist / CONNECT_DISTANCE);
+                            ctx.strokeStyle = `rgba(0, 243, 255, ${opacity * 0.5})`;
+                            ctx.moveTo(nodes[i].x, nodes[i].y);
+                            ctx.lineTo(nodes[j].x, nodes[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            function loop() {
+                if (state.theme === 'matrix') {
+                    if (Date.now() % 2 === 0) drawMatrix();
+                } else if (state.theme === 'outrun') {
+                    drawOutrun();
+                } else if (state.theme === 'network') {
+                    drawNetwork();
+                } else {
+                    // Vaporwave uses CSS gradient, clear canvas
+                    ctx.clearRect(0,0, bgCanvas.width, bgCanvas.height);
+                }
+                requestAnimationFrame(loop);
+            }
+
+            loop();
+        }
+
+        // --- DOM & Visuals ---
+
+        function calculateFontSize(score) {
+            const base = 14;
+            const maxAdd = 24;
+            const cappedScore = Math.min(score, 600);
+            const size = base + (Math.log(cappedScore + 1) / Math.log(601) * maxAdd);
+            return Math.floor(size);
+        }
+
+        function createWordElement(story) {
+            const el = document.createElement('a');
+            el.href = `https://news.ycombinator.com/item?id=${story.id}`;
+            el.target = "_blank";
+            el.className = 'cloud-item';
+            el.textContent = story.title;
+            el.dataset.original = story.title;
+            el.dataset.id = story.id;
+            el.id = `story-${story.id}`;
+
+            const fontSize = calculateFontSize(story.score);
+            el.style.fontSize = `${fontSize}px`;
+            
+            if (story.score > 100) el.classList.add('hot');
+
+            el.style.visibility = 'hidden';
+            canvas.appendChild(el);
+            return el;
+        }
+
+        // --- Glitch Effect (Restored) ---
+        function runGlitch() {
+            const visibleItems = state.stories
+                .map(s => document.getElementById(`story-${s.id}`))
+                .filter(el => el && el.style.opacity === '1');
+
+            if (visibleItems.length === 0) return;
+
+            // Glitch 2 to 5 items per cycle
+            const glitchCount = Math.floor(Math.random() * 4) + 2;
+            
+            for (let i = 0; i < glitchCount; i++) {
+                const el = visibleItems[Math.floor(Math.random() * visibleItems.length)];
+                if (!el || el.dataset.glitching) continue;
+
+                el.dataset.glitching = "true";
+                const originalText = el.dataset.original;
+                const len = originalText.length;
+                
+                const flips = Math.max(1, Math.floor(len * 0.5));
+                
+                let newText = originalText.split('');
+                const indicesToFlip = new Set();
+                while (indicesToFlip.size < flips) {
+                    indicesToFlip.add(Math.floor(Math.random() * len));
+                }
+
+                indicesToFlip.forEach(idx => {
+                    if (newText[idx] !== ' ') {
+                        newText[idx] = GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+                    }
+                });
+                
+                el.textContent = newText.join('');
+                
+                setTimeout(() => {
+                    if (el) {
+                        el.textContent = originalText;
+                        delete el.dataset.glitching;
+                    }
+                }, 100 + Math.random() * 150);
+            }
+        }
+
+        // --- Core Logic: Relayout ---
+        
+        function relayout() {
+            let currentY = 20; 
+            
+            state.stories.forEach((story) => {
+                let el = document.getElementById(`story-${story.id}`);
+                
+                if (!el) {
+                    el = createWordElement(story);
+                }
+
+                const width = el.offsetWidth;
+                const height = el.offsetHeight;
+
+                if (currentY + height < window.innerHeight) {
+                    const minX = 20;
+                    const maxX = Math.max(minX, window.innerWidth - width - 20);
+                    const safeMaxX = Math.max(minX, maxX);
+                    const x = Math.floor(Math.random() * (safeMaxX - minX + 1)) + minX;
+
+                    el.style.left = `${x}px`;
+                    el.style.top = `${currentY}px`;
+                    el.style.visibility = 'visible';
+                    el.style.opacity = 1;
+                    
+                    currentY += height + 8; 
+                } else {
+                    el.style.opacity = 0; 
+                }
+            });
+        }
+
+        // --- API & Data Management ---
+
+        async function fetchItem(id) {
+            try {
+                const resp = await fetch(`${HN_API_BASE}/item/${id}.json`);
+                return await resp.json();
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function fetchTopStories() {
+            if (state.isFetching) return; 
+            state.isFetching = true;
+            
+            try {
+                const resp = await fetch(`${HN_API_BASE}/topstories.json`);
+                const allIds = await resp.json();
+                const targetIds = allIds.slice(0, STORIES_LIMIT);
+                
+                const newOrderedStories = [];
+                
+                for (const id of targetIds) {
+                    let story = state.stories.find(s => s.id === id);
+                    if (!story) story = await fetchItem(id);
+                    if (story && !story.deleted && !story.dead) newOrderedStories.push(story);
+                }
+
+                state.stories = newOrderedStories;
+                
+                const activeIds = new Set(newOrderedStories.map(s => s.id));
+                document.querySelectorAll('.cloud-item').forEach(el => {
+                    if (!activeIds.has(parseInt(el.dataset.id))) el.remove();
+                });
+
+                relayout();
+                
+            } catch (e) {
+                console.error(e);
+            } finally {
+                state.isFetching = false;
+            }
+        }
+
+        function init() {
+            initBackgrounds(); 
+            changeTheme(state.theme);
+            
+            fetchTopStories();
+            
+            setInterval(fetchTopStories, UPDATE_INTERVAL_MS);
+            setInterval(runGlitch, 3000); // Added back glitch interval
+            
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(relayout, 500);
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 't' || e.key === 'T') {
+                    // Cycle: Vaporwave -> Matrix -> Outrun -> Network
+                    if (state.theme === 'vaporwave') changeTheme('matrix');
+                    else if (state.theme === 'matrix') changeTheme('outrun');
+                    else if (state.theme === 'outrun') changeTheme('network');
+                    else changeTheme('vaporwave');
+                }
+            });
+        }
+
+        init();
+
+    </script>
+</body>
+</html>

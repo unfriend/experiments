@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Cyberspace Drive</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the dark, futuristic theme */
+        body {
+            background-color: #000000;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        #scene-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+        }
+        canvas {
+            display: block;
+        }
+        #overlay {
+            z-index: 20;
+            pointer-events: none; /* Allows clicks to pass through */
+        }
+        /* Custom CSS for neon glow effect on buttons/text */
+        .neon-glow {
+            text-shadow: 0 0 5px #ff00ff, 0 0 10px #00ffff, 0 0 15px #ff00ff;
+            box-shadow: 0 0 5px #00ffff, 0 0 10px #ff00ff;
+        }
+        .neon-btn {
+            pointer-events: auto; /* Re-enable clicks for the button */
+            background: rgba(16, 18, 27, 0.7);
+            transition: all 0.2s ease-in-out;
+            border: 2px solid #00ffff;
+        }
+        .neon-btn:hover {
+            transform: scale(1.05);
+            background: rgba(16, 18, 27, 0.9);
+            border-color: #ff00ff;
+        }
+        .text-neon {
+            color: #00ffff;
+        }
+    </style>
+    <!-- Load Three.js (3D Library) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Load Tone.js (Audio Library) -->
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+</head>
+<body>
+
+    <div id="scene-container"></div>
+
+    <!-- Overlay UI -->
+    <div id="overlay" class="fixed inset-0 flex flex-col items-center justify-center p-4">
+        <div id="start-screen" class="text-center">
+            <h1 class="text-4xl sm:text-6xl font-extrabold text-neon uppercase mb-6 neon-glow">
+                Cyberspace Highway
+            </h1>
+            <p id="loading-message" class="text-white text-xl mb-8">Loading Soundtrack and Grid...</p>
+
+            <button id="start-button"
+                    class="neon-btn text-xl sm:text-2xl text-white font-bold py-3 px-8 rounded-xl opacity-0 transition-opacity duration-500"
+                    disabled>
+                Start Drive 🎧
+            </button>
+        </div>
+        <div id="ui-info" class="absolute bottom-4 left-4 text-xs text-gray-500 hidden sm:block">
+            <!-- Info for desktop users -->
+            <p>3D by Three.js | Audio by Tone.js</p>
+            <p>Camera Z: <span id="camera-z">0</span></p>
+        </div>
+    </div>
+
+<script>
+    // --- Global Variables ---
+    let camera, scene, renderer;
+    let grid, cubes = [];
+    let isDriving = false;
+    let driveSpeed = 0.5;
+    const CUBE_COUNT = 30;
+    const GRID_SIZE = 1000;
+    const GRID_DIVISIONS = 40;
+    const NEON_COLOR_A = 0x00ffff; // Cyan
+    const NEON_COLOR_B = 0xff00ff; // Magenta
+
+    // Tone.js Audio Setup
+    let bassSynth, leadSynth, sequence;
+    const startButton = document.getElementById('start-button');
+    const loadingMessage = document.getElementById('loading-message');
+
+    // --- Audio Logic (Tone.js) ---
+
+    function setupAudio() {
+        // 1. Bass Synth (Membrane for punchy kick/bass)
+        bassSynth = new Tone.MembraneSynth({
+            envelope: { attack: 0.01, sustain: 0.05, release: 0.2 }
+        }).toDestination();
+
+        // 2. Lead/Pad Synth (PolySynth for chord/melody)
+        leadSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "sawtooth" },
+            envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 },
+            filter: { Q: 2, frequency: 1000 },
+        }).chain(new Tone.Reverb(3).toDestination()); // Add some reverb for atmosphere
+
+        // 3. Define the synthwave sequence (4 bars)
+        const bassPattern = ["C2", null, "G1", null, "A1", null, "F1", null];
+        const leadChords = [
+            ["C4", "E4", "G4"], // C Major
+            null,
+            ["G3", "B3", "D4"], // G Major
+            null,
+            ["A3", "C4", "E4"], // A Minor
+            null,
+            ["F3", "A3", "C4"], // F Major
+            null
+        ];
+
+        let bassIndex = 0;
+        let leadIndex = 0;
+
+        sequence = new Tone.Sequence((time, step) => {
+            // Bassline
+            const bassNote = bassPattern[bassIndex % bassPattern.length];
+            if (bassNote) {
+                bassSynth.triggerAttackRelease(bassNote, "8n", time);
+            }
+            bassIndex++;
+
+            // Lead Chords (Played every half bar)
+            if (step % 2 === 0) {
+                const chord = leadChords[leadIndex % leadChords.length];
+                if (chord) {
+                    leadSynth.triggerAttackRelease(chord, "2n", time, 0.5);
+                }
+                leadIndex++;
+            }
+        }, [0, 1, 2, 3, 4, 5, 6, 7], "4n"); // Sequence runs on quarter notes
+
+        Tone.Transport.bpm.value = 120;
+    }
+
+    // --- Three.js Initialization ---
+
+    function init() {
+        // 1. Scene setup
+        scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.001); // Adds distance haze
+
+        // 2. Camera setup (Simulates the driver's perspective)
+        const aspect = window.innerWidth / window.innerHeight;
+        camera = new THREE.PerspectiveCamera(75, aspect, 0.1, GRID_SIZE * 2);
+        camera.position.set(0, 10, 0); // Start slightly above the ground
+        camera.rotation.x = -0.1; // Slight downward angle
+
+        // 3. Renderer setup
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000);
+        document.getElementById('scene-container').appendChild(renderer.domElement);
+
+        // 4. Create the Grid (The endless road)
+        const geometry = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE * 4, GRID_DIVISIONS, GRID_DIVISIONS * 4);
+        const material = new THREE.MeshBasicMaterial({
+            color: NEON_COLOR_A,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.4
+        });
+        grid = new THREE.Mesh(geometry, material);
+        grid.rotation.x = -Math.PI / 2; // Lay flat on the XZ plane
+        grid.position.y = 0;
+        grid.position.z = -GRID_SIZE * 1.5; // Start it far away
+        scene.add(grid);
+
+        // 5. Create Obstacles (Glow Cubes)
+        const cubeGeometry = new THREE.BoxGeometry(10, 10, 10);
+        const cubeMaterial = new THREE.MeshBasicMaterial({
+            color: NEON_COLOR_B,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.9
+        });
+
+        for (let i = 0; i < CUBE_COUNT; i++) {
+            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial.clone());
+            // Randomly position cubes in the distance, slightly off the track
+            cube.position.x = (Math.random() - 0.5) * 400;
+            cube.position.y = 5 + Math.random() * 20;
+            cube.position.z = -GRID_SIZE - (Math.random() * GRID_SIZE * 3);
+            cube.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            cubes.push(cube);
+            scene.add(cube);
+        }
+
+        // 6. Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+
+        // Indicate loading is done and enable the button
+        loadingMessage.textContent = "Ready to drive.";
+        startButton.disabled = false;
+        startButton.classList.remove('opacity-0');
+
+        // Start the 3D animation loop
+        animate();
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // --- Animation Loop ---
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // If driving, move the camera forward
+        if (isDriving) {
+            // Move camera forward (simulate the car)
+            camera.position.z -= driveSpeed * 3;
+            document.getElementById('camera-z').textContent = Math.round(camera.position.z * 10) / 10;
+        }
+
+        // Scroll the grid
+        // The grid texture scrolls back towards the camera
+        grid.position.z += driveSpeed * 2;
+        if (grid.position.z > 0) {
+            // Reset grid position far away to create the endless illusion
+            grid.position.z -= GRID_SIZE * 4;
+        }
+
+        // Move and reset cubes
+        cubes.forEach(cube => {
+            cube.position.z += driveSpeed * 2;
+            cube.rotation.x += 0.01;
+            cube.rotation.y += 0.005;
+
+            // If cube passes the camera, reset it far away
+            if (cube.position.z > 50) {
+                cube.position.z = -GRID_SIZE * 3;
+                cube.position.x = (Math.random() - 0.5) * 400; // New random lane
+                cube.position.y = 5 + Math.random() * 20;
+                cube.material.color.set(Math.random() > 0.5 ? NEON_COLOR_A : NEON_COLOR_B);
+            }
+        });
+
+        renderer.render(scene, camera);
+    }
+
+    // --- Interaction and Tone.js Start ---
+
+    function startCyberspaceDrive() {
+        if (!isDriving) {
+            // 1. Start Audio Context and Transport
+            Tone.start();
+            sequence.start(0);
+            Tone.Transport.start();
+
+            // 2. Update state and UI
+            isDriving = true;
+            startButton.textContent = "Driving... (Volume Control Below)";
+            startButton.classList.add('bg-green-700', 'border-green-400');
+            startButton.classList.remove('neon-btn');
+
+            // Optionally hide the main start screen elements
+            const startScreen = document.getElementById('start-screen');
+            startScreen.classList.add('transition-opacity', 'duration-1000', 'opacity-0');
+            setTimeout(() => {
+                startScreen.style.pointerEvents = 'none';
+                startScreen.style.position = 'fixed';
+                startScreen.style.top = '-9999px'; // Move it out of view
+            }, 1000);
+        }
+    }
+
+    // Attach event listener
+    startButton.addEventListener('click', startCyberspaceDrive);
+
+    // Initial setup on window load
+    window.onload = function() {
+        setupAudio();
+        init();
+    };
+
+</script>
+
+</body>
+</html>

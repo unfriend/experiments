@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Horizon - Vaporwave Edition</title>
+    
+    <!-- Three.js Core -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Post Processing Scripts (Required for Bloom) -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Monoton&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Press Start 2P', cursive;
+            user-select: none;
+        }
+
+        /* CRT Monitor Effect Container */
+        #crt-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 100;
+            background: radial-gradient(circle, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.6) 100%);
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.9);
+        }
+
+        /* Scanlines */
+        #crt-container::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Screen Flicker */
+        #crt-container::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: rgba(18, 16, 16, 0.1);
+            opacity: 0;
+            z-index: 2;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 25px;
+            box-sizing: border-box;
+            z-index: 50;
+            /* Chromatic Aberration on Text */
+            text-shadow: 2px 0 #ff00ff, -2px 0 #00ffff; 
+        }
+
+        .hud-text {
+            color: #fff;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #score-display {
+            font-size: 20px;
+            text-align: right;
+        }
+
+        #autopilot-msg {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ffff;
+            font-family: 'Monoton', cursive; /* More retro font */
+            font-size: 48px;
+            text-shadow: 0 0 20px #00ffff, 4px 4px #ff00ff;
+            display: none;
+            text-align: center;
+            width: 100%;
+            background: rgba(0,0,0,0.5);
+            padding: 20px 0;
+            border-top: 2px solid #ff00ff;
+            border-bottom: 2px solid #ff00ff;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 0, 15, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 60;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-family: 'Monoton', cursive;
+            font-size: 80px;
+            font-weight: normal;
+            background: -webkit-linear-gradient(#00ffff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            text-shadow: 4px 4px 0px rgba(255, 0, 255, 0.5);
+            letter-spacing: 5px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #00ffff;
+            font-size: 14px;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid #ff00ff;
+            color: #ff00ff;
+            font-family: 'Press Start 2P', cursive;
+            padding: 20px 40px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 0 15px #ff00ff, inset 0 0 15px #ff00ff;
+            text-shadow: 0 0 5px #ff00ff;
+        }
+
+        button:hover {
+            background: #ff00ff;
+            color: #fff;
+            box-shadow: 0 0 30px #ff00ff, inset 0 0 30px #ff00ff;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.02; }
+            5% { opacity: 0.05; }
+            10% { opacity: 0.02; }
+            100% { opacity: 0.02; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="crt-container"></div>
+
+    <div id="ui-layer">
+        <div class="hud-text">SHIELD INTEGRITY: <span id="health" style="color:#00ffff">100</span>%</div>
+        <div id="autopilot-msg">A.I. TAKEOVER<br><span style="font-family:'Press Start 2P'; font-size: 14px; letter-spacing: 2px; color: #fff; text-shadow: none; display:block; margin-top:15px;">INPUT DETECTED: WAITING...</span></div>
+        <div class="hud-text" id="score-display">SCORE: 000000</div>
+    </div>
+
+    <div id="start-screen">
+        <h1>NEON<br>HORIZON</h1>
+        <div class="subtitle">Aesthetic Rail Shooter</div>
+        <p style="color: #ccc; margin-bottom: 40px; line-height: 1.8; text-align: center; font-size: 12px; max-width: 600px;">
+            <span style="color: #ff00ff;">>></span> MOUSE to PILOT <span style="color: #ff00ff;"><<</span><br>
+            <span style="color: #00ffff;">>></span> CLICK to FIRE <span style="color: #00ffff;"><<</span><br>
+            <br>
+            SYSTEM WILL ENGAGE AUTOPILOT IF IDLE
+        </p>
+        <button id="start-btn">INSERT COIN</button>
+    </div>
+
+    <script>
+        // --- CONSTANTS ---
+        const COLORS = {
+            background: 0x050011, // Deep dark purple
+            fog: 0x180028,
+            grid: 0xff00ff,       // Pink Grid
+            sunTop: 0xffdd00,     // Yellow
+            sunBot: 0xff00aa,     // Pink
+            player: 0x00ffff,     // Cyan
+            enemy: 0xff0055,      // Red/Pink
+            bullet: 0xccff00,     // Lime/Yellow
+            mountain: 0x220044    // Dark Purple wireframe
+        };
+
+        const STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2 };
+        let gameState = STATE.MENU;
+        let score = 0;
+        let speed = 0.8;
+        let health = 100;
+        let frameId;
+
+        // Autopilot
+        let lastInputTime = Date.now();
+        let isAutopilot = false;
+        const AUTOPILOT_DELAY = 4000;
+        let autoTargetX = 0;
+        let autoTargetY = 0;
+        let autoShootTimer = 0;
+
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(COLORS.background);
+        scene.fog = new THREE.FogExp2(COLORS.fog, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 12);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias false for retro crispness + performance with bloom
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        document.body.appendChild(renderer.domElement);
+
+        // --- POST PROCESSING (BLOOM) ---
+        const renderScene = new THREE.RenderPass(scene, camera);
+
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0;
+        bloomPass.strength = 1.2; // Intense glow
+        bloomPass.radius = 0.5;
+
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // --- GAME OBJECTS ---
+
+        // 1. Endless Grid Floor
+        const planeGeo = new THREE.PlaneGeometry(400, 400, 40, 40);
+        const planeMat = new THREE.MeshBasicMaterial({ 
+            color: COLORS.grid, 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+        const floor = new THREE.Mesh(planeGeo, planeMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -4;
+        scene.add(floor);
+
+        // 3. Mountains (Procedural scrolling landscape)
+        const mountainGroup = new THREE.Group();
+        scene.add(mountainGroup);
+        
+        function createMountainStrip(zPos) {
+            const width = 200;
+            const segments = 20;
+            // Create a jagged line loop
+            const points = [];
+            const step = width / segments;
+            for(let i=0; i<=segments; i++) {
+                const x = -width/2 + (i*step);
+                // Leave a gap in the middle for gameplay
+                let height = 0;
+                if(Math.abs(x) > 20) {
+                    height = Math.random() * 15;
+                }
+                points.push(new THREE.Vector3(x, height - 4, 0));
+            }
+
+            // Create geometry from points to make lines
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const lineMat = new THREE.LineBasicMaterial({ color: COLORS.grid, transparent: true, opacity: 0.5 });
+            const line = new THREE.Line(lineGeo, lineMat);
+            line.position.z = zPos;
+            return line;
+        }
+
+        const mountainStripes = [];
+        for(let i=0; i<20; i++) {
+            const strip = createMountainStrip(-i * 10);
+            mountainGroup.add(strip);
+            mountainStripes.push(strip);
+        }
+
+
+        // 4. Player Ship (Synthwave Fighter)
+        const playerGroup = new THREE.Group();
+        scene.add(playerGroup);
+
+        const shipBodyGeo = new THREE.ConeGeometry(0.8, 3, 4);
+        shipBodyGeo.rotateX(Math.PI / 2);
+        shipBodyGeo.rotateZ(Math.PI / 4); // Diamond shape profile
+        const shipMat = new THREE.MeshBasicMaterial({ 
+            color: COLORS.player, 
+            wireframe: true 
+        });
+        const shipBody = new THREE.Mesh(shipBodyGeo, shipMat);
+        playerGroup.add(shipBody);
+
+        // Wings
+        const wingGeo = new THREE.BufferGeometry();
+        const wingVertices = new Float32Array([
+            0, 0, 1,   2, 0, 1.5,   0, 0, -1,
+            0, 0, 1,  -2, 0, 1.5,   0, 0, -1
+        ]);
+        wingGeo.setAttribute('position', new THREE.BufferAttribute(wingVertices, 3));
+        const wings = new THREE.Mesh(wingGeo, new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true, side: THREE.DoubleSide }));
+        playerGroup.add(wings);
+
+
+        // --- STATE & GAMEPLAY ---
+        let bullets = [];
+        let enemies = [];
+        let particles = [];
+        let mouseX = 0;
+        let mouseY = 0;
+
+        // --- AUDIO ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            // Reverb effect (simple delay)
+            const delay = audioCtx.createDelay();
+            delay.delayTime.value = 0.1;
+            const delayGain = audioCtx.createGain();
+            delayGain.gain.value = 0.3;
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            gain.connect(delay);
+            delay.connect(delayGain);
+            delayGain.connect(audioCtx.destination);
+
+            if (type === 'shoot') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(1200, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'explosion') {
+                osc.type = 'sawtooth'; // Sawtooth for crunchier explosions
+                osc.frequency.setValueAtTime(50, now);
+                osc.frequency.exponentialRampToValueAtTime(10, now + 0.4);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+        }
+
+        // --- EVENTS ---
+        window.addEventListener('mousemove', (e) => {
+            if (gameState === STATE.GAMEOVER) return;
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            lastInputTime = Date.now();
+            if (isAutopilot) {
+                isAutopilot = false;
+                document.getElementById('autopilot-msg').style.display = 'none';
+                document.querySelector('.hud-text').style.color = '#fff';
+            }
+        });
+
+        window.addEventListener('mousedown', () => {
+            if (gameState === STATE.PLAYING && !isAutopilot) shoot();
+            lastInputTime = Date.now();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('start-screen').style.display = 'none';
+            resetGame();
+        });
+
+        // --- LOGIC ---
+        function shoot() {
+            playSound('shoot');
+            const geo = new THREE.BoxGeometry(0.2, 0.2, 2);
+            const mat = new THREE.MeshBasicMaterial({ color: COLORS.bullet });
+            const bullet = new THREE.Mesh(geo, mat);
+            bullet.position.copy(playerGroup.position);
+            bullet.position.z -= 1;
+            
+            if(isAutopilot) bullet.position.x += (Math.random() - 0.5);
+
+            scene.add(bullet);
+            bullets.push({ mesh: bullet, speed: 2.5 });
+        }
+
+        function createEnemy() {
+            const type = Math.floor(Math.random() * 3);
+            let geo, mat;
+            
+            if (type === 0) {
+                geo = new THREE.IcosahedronGeometry(1.5, 0); // Low poly ball
+            } else if (type === 1) {
+                geo = new THREE.OctahedronGeometry(1.5); // Diamond
+            } else {
+                geo = new THREE.BoxGeometry(2, 2, 2);
+            }
+
+            mat = new THREE.MeshBasicMaterial({ color: COLORS.enemy, wireframe: true });
+            const enemy = new THREE.Mesh(geo, mat);
+
+            // Add glowing core
+            const core = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.5), 
+                new THREE.MeshBasicMaterial({ color: 0xffffff })
+            );
+            enemy.add(core);
+
+            const spawnX = (Math.random() - 0.5) * 35;
+            const spawnY = (Math.random() - 0.5) * 15;
+            enemy.position.set(spawnX, spawnY, -150);
+
+            scene.add(enemy);
+            enemies.push({ mesh: enemy, rotSpeed: Math.random() * 0.05 + 0.02 });
+        }
+
+        function createExplosion(pos) {
+            playSound('explosion');
+            // Debris
+            for(let i=0; i<12; i++) {
+                const geo = new THREE.BoxGeometry(0.1 + Math.random()*0.3, 0.1, 0.1 + Math.random()*0.3);
+                const mat = new THREE.MeshBasicMaterial({ color: Math.random()>0.5 ? 0xffffff : COLORS.sunTop });
+                const p = new THREE.Mesh(geo, mat);
+                p.position.copy(pos);
+                // Random spread velocity
+                const vel = new THREE.Vector3(
+                    (Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5)
+                ).normalize().multiplyScalar(0.5 + Math.random());
+
+                scene.add(p);
+                particles.push({ mesh: p, velocity: vel, life: 1.0 });
+            }
+            
+            // Shockwave ring
+            const ringGeo = new THREE.RingGeometry(0.1, 0.3, 16);
+            const ringMat = new THREE.MeshBasicMaterial({ color: COLORS.enemy, side: THREE.DoubleSide, transparent: true });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.copy(pos);
+            ring.lookAt(camera.position);
+            scene.add(ring);
+            particles.push({ mesh: ring, isRing: true, scaleSpd: 0.5, life: 1.0 });
+        }
+
+        function updateAutopilot() {
+            if (!isAutopilot && Date.now() - lastInputTime > AUTOPILOT_DELAY) {
+                isAutopilot = true;
+                document.getElementById('autopilot-msg').style.display = 'block';
+            }
+
+            if (isAutopilot) {
+                let nearestDist = Infinity;
+                let threat = null;
+
+                for (let e of enemies) {
+                    const dist = playerGroup.position.distanceTo(e.mesh.position);
+                    if (e.mesh.position.z > -80 && e.mesh.position.z < playerGroup.position.z && dist < nearestDist) {
+                        nearestDist = dist;
+                        threat = e.mesh;
+                    }
+                }
+
+                if (threat) {
+                    // Smooth dodge
+                    const dx = threat.position.x - playerGroup.position.x;
+                    const dy = threat.position.y - playerGroup.position.y;
+                    autoTargetX = -Math.sign(dx) * 10;
+                    autoTargetY = -Math.sign(dy) * 6;
+                } else {
+                    // Lazy Figure-8
+                    const t = Date.now() * 0.0005;
+                    autoTargetX = Math.cos(t) * 8;
+                    autoTargetY = Math.sin(t * 2) * 4;
+                }
+
+                // Smoothly override mouseX/Y
+                const targetMouseX = Math.max(-1, Math.min(1, autoTargetX / 14));
+                const targetMouseY = Math.max(-1, Math.min(1, autoTargetY / 8));
+                mouseX += (targetMouseX - mouseX) * 0.05;
+                mouseY += (targetMouseY - mouseY) * 0.05;
+
+                autoShootTimer++;
+                if(autoShootTimer > 10) {
+                    shoot();
+                    autoShootTimer = 0;
+                }
+            }
+        }
+
+        function resetGame() {
+            score = 0;
+            health = 100;
+            speed = 0.8;
+            enemies.forEach(e => scene.remove(e.mesh));
+            enemies = [];
+            bullets.forEach(b => scene.remove(b.mesh));
+            bullets = [];
+            playerGroup.position.set(0,0,0);
+            gameState = STATE.PLAYING;
+            document.getElementById('health').innerText = health;
+            document.getElementById('score-display').innerText = `SCORE: ${score.toString().padStart(6, '0')}`;
+            animate();
+        }
+
+        function gameOver() {
+            gameState = STATE.GAMEOVER;
+            cancelAnimationFrame(frameId);
+            document.getElementById('start-screen').style.display = 'flex';
+            document.querySelector('#start-screen h1').innerHTML = "SYSTEM<br>CRASH";
+            document.getElementById('start-btn').innerText = "REBOOT SYSTEM";
+        }
+
+        function animate() {
+            if (gameState !== STATE.PLAYING) return;
+            frameId = requestAnimationFrame(animate);
+
+            updateAutopilot();
+
+            // 1. Environment Scrolling
+            // Move floor texture (simulated by moving mesh and resetting)
+            const scrollSpeed = speed * 1.5;
+            
+            // Scroll Mountains
+            mountainStripes.forEach(strip => {
+                strip.position.z += scrollSpeed;
+                if(strip.position.z > 20) {
+                    strip.position.z -= 200; // Reset to back
+                }
+            });
+
+            // 2. Player Movement
+            const targetX = mouseX * 16;
+            const targetY = mouseY * 9;
+            playerGroup.position.x += (targetX - playerGroup.position.x) * 0.1;
+            playerGroup.position.y += (targetY - playerGroup.position.y) * 0.1;
+            
+            // Banking
+            playerGroup.rotation.z = -playerGroup.position.x * 0.04;
+            playerGroup.rotation.x = (playerGroup.position.y * 0.03);
+
+            // 3. Bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.mesh.position.z -= b.speed;
+                if (b.mesh.position.z < -200) {
+                    scene.remove(b.mesh);
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 4. Enemies
+            if (Math.random() < 0.02 + (score/60000)) createEnemy();
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                e.mesh.position.z += speed;
+                e.mesh.rotation.x += e.rotSpeed;
+                e.mesh.rotation.y += e.rotSpeed;
+
+                // Collision: Player
+                if (e.mesh.position.distanceTo(playerGroup.position) < 3.0) {
+                    createExplosion(e.mesh.position);
+                    scene.remove(e.mesh);
+                    enemies.splice(i, 1);
+                    if(!isAutopilot) {
+                        health -= 25;
+                        document.getElementById('health').innerText = Math.max(0, health);
+                        camera.position.x = (Math.random() - 0.5) * 2;
+                        if (health <= 0) gameOver();
+                    }
+                    continue;
+                }
+
+                // Collision: Bullets
+                let hit = false;
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    if (bullets[j].mesh.position.distanceTo(e.mesh.position) < 3) {
+                        createExplosion(e.mesh.position);
+                        scene.remove(bullets[j].mesh);
+                        bullets.splice(j, 1);
+                        hit = true;
+                        score += 150;
+                        document.getElementById('score-display').innerText = `SCORE: ${score.toString().padStart(6, '0')}`;
+                        break;
+                    }
+                }
+                if (hit) {
+                    scene.remove(e.mesh);
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                if (e.mesh.position.z > 10) {
+                    scene.remove(e.mesh);
+                    enemies.splice(i, 1);
+                }
+            }
+
+            // 5. Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                if(p.isRing) {
+                    p.mesh.scale.multiplyScalar(1.1);
+                } else {
+                    p.mesh.position.add(p.velocity);
+                }
+                p.life -= 0.03;
+                p.mesh.material.opacity = p.life;
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    particles.splice(i, 1);
+                }
+            }
+
+            // Reset camera shake
+            camera.position.x += (0 - camera.position.x) * 0.1;
+            
+            // Render with Bloom
+            composer.render();
+        }
+
+    </script>
+</body>
+</html>

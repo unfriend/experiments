@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript Variometer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Prevents double-tap zoom on mobile */
+        }
+        /* Custom styles for the variometer dial */
+        .variometer-dial {
+            background: radial-gradient(circle, #4a5568 0%, #1a202c 100%);
+            border: 8px solid #2d3748;
+            box-shadow: 0 0 25px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.7);
+        }
+        /* Style for the control buttons */
+        .control-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .control-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-sm mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 border border-gray-700">
+        
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-cyan-400">Variometer</h1>
+            <p class="text-gray-400">Vertical Speed Indicator</p>
+        </div>
+
+        <!-- Variometer Dial -->
+        <div class="relative w-full aspect-square mb-6">
+            <canvas id="variometerCanvas" class="variometer-dial rounded-full"></canvas>
+        </div>
+
+        <!-- Digital Readout -->
+        <div class="bg-gray-900 rounded-lg p-4 text-center mb-6 border border-gray-700">
+            <p class="text-lg text-gray-400">Vertical Speed</p>
+            <p id="digitalReadout" class="text-4xl font-bold text-white">0.0 m/s</p>
+        </div>
+
+        <!-- Controls -->
+        <div class="grid grid-cols-2 gap-4">
+            <button id="descendBtn" class="control-btn bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-4 rounded-lg shadow-lg text-lg">
+                Descend
+            </button>
+            <button id="ascendBtn" class="control-btn bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg shadow-lg text-lg">
+                Ascend
+            </button>
+        </div>
+        
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('variometerCanvas');
+            const ctx = canvas.getContext('2d');
+            const digitalReadout = document.getElementById('digitalReadout');
+            const ascendBtn = document.getElementById('ascendBtn');
+            const descendBtn = document.getElementById('descendBtn');
+
+            // --- Configuration ---
+            const MAX_VS = 10; // Max vertical speed in m/s
+            const MIN_VS = -10; // Min vertical speed in m/s
+            const TOTAL_ANGLE = 270; // Total sweep angle of the needle in degrees
+            const START_ANGLE = 135; // Start angle in degrees (0 is 3 o'clock)
+            const INERTIA_FACTOR = 0.05; // Smoothing factor for needle movement
+
+            let currentVS = 0;
+            let targetVS = 0;
+
+            // --- Audio Setup ---
+            let audioCtx;
+            let oscillator;
+            let gainNode;
+            let userInteracted = false;
+            let soundState = 'silent'; // Can be 'silent', 'lifting', 'sinking'
+            let beepTimeout = null;
+
+            function setupAudio() {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    oscillator = audioCtx.createOscillator();
+                    gainNode = audioCtx.createGain();
+
+                    oscillator.type = 'sine';
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                    oscillator.start();
+                } catch (e) {
+                    console.error("Web Audio API is not supported in this browser");
+                }
+            }
+
+            // --- Sizing and DPI Scaling ---
+            function setupCanvas() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.parentElement.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+                canvas.style.width = `${rect.width}px`;
+                canvas.style.height = `${rect.height}px`;
+            }
+
+            // --- Drawing Functions ---
+
+            function drawDial() {
+                const radius = canvas.width / (2 * (window.devicePixelRatio || 1));
+                const center = radius;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.save();
+                ctx.translate(center, center);
+                drawScale(radius);
+                drawNeedle(radius);
+
+                // Draw center hub
+                ctx.beginPath();
+                ctx.arc(0, 0, radius * 0.05, 0, 2 * Math.PI);
+                ctx.fillStyle = '#1a202c';
+                ctx.fill();
+                ctx.strokeStyle = '#718096';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            function drawScale(radius) {
+                const scaleRadius = radius * 0.8;
+                
+                ctx.font = `${radius * 0.12}px Inter`;
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                for (let i = MIN_VS; i <= MAX_VS; i++) {
+                    const angle = valueToAngle(i);
+                    const rad = angle * Math.PI / 180;
+                    
+                    const x1 = Math.cos(rad) * scaleRadius;
+                    const y1 = Math.sin(rad) * scaleRadius;
+                    
+                    if (i % 2 === 0) { // Major ticks
+                        const x2 = Math.cos(rad) * (scaleRadius * 0.9);
+                        const y2 = Math.sin(rad) * (scaleRadius * 0.9);
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.strokeStyle = 'white';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        const textX = Math.cos(rad) * (scaleRadius * 0.75);
+                        const textY = Math.sin(rad) * (scaleRadius * 0.75);
+                        ctx.save();
+                        ctx.translate(textX, textY);
+                        ctx.rotate((angle + 90) * Math.PI / 180);
+                        ctx.fillText(i.toString(), 0, 0);
+                        ctx.restore();
+                    } else { // Minor ticks
+                        const x2 = Math.cos(rad) * (scaleRadius * 0.95);
+                        const y2 = Math.sin(rad) * (scaleRadius * 0.95);
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.strokeStyle = '#a0aec0';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+                const arcRadius = radius * 0.98;
+                const zeroAngleRad = valueToAngle(0) * Math.PI / 180;
+                const maxAngleRad = valueToAngle(MAX_VS) * Math.PI / 180;
+                const minAngleRad = valueToAngle(MIN_VS) * Math.PI / 180;
+
+                ctx.beginPath();
+                ctx.arc(0, 0, arcRadius, minAngleRad, zeroAngleRad);
+                ctx.strokeStyle = 'rgba(229, 62, 62, 0.7)';
+                ctx.lineWidth = radius * 0.08;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(0, 0, arcRadius, zeroAngleRad, maxAngleRad);
+                ctx.strokeStyle = 'rgba(56, 161, 105, 0.7)';
+                ctx.lineWidth = radius * 0.08;
+                ctx.stroke();
+            }
+
+            function drawNeedle(radius) {
+                const angle = valueToAngle(currentVS);
+                const rad = angle * Math.PI / 180;
+                
+                ctx.save();
+                ctx.rotate(rad);
+                ctx.beginPath();
+                ctx.moveTo(-radius * 0.1, 0);
+                ctx.lineTo(radius * 0.8, 0);
+                ctx.strokeStyle = '#f56565';
+                ctx.lineWidth = radius * 0.03;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // --- Utility Functions ---
+
+            function valueToAngle(value) {
+                const valueRange = MAX_VS - MIN_VS;
+                const angleRange = TOTAL_ANGLE;
+                const normalizedValue = (value - MIN_VS) / valueRange;
+                return (normalizedValue * angleRange) + START_ANGLE;
+            }
+
+            // --- Audio Control ---
+            
+            function manageAudio(vs) {
+                if (!audioCtx) return;
+
+                const LIFT_THRESHOLD = 0.2;
+                const SINK_THRESHOLD = -2.0;
+                let newState = 'silent';
+
+                if (vs > LIFT_THRESHOLD) {
+                    newState = 'lifting';
+                } else if (vs < SINK_THRESHOLD) {
+                    newState = 'sinking';
+                }
+
+                if (newState !== soundState) {
+                    // State has changed, so stop current sound and start new one
+                    clearTimeout(beepTimeout);
+                    beepTimeout = null;
+                    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+                    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+
+                    soundState = newState;
+
+                    if (soundState === 'lifting') {
+                        scheduleBeep(vs);
+                    } else if (soundState === 'sinking') {
+                        oscillator.frequency.setValueAtTime(220, audioCtx.currentTime);
+                        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    }
+                }
+            }
+            
+            function scheduleBeep(vs) {
+                if (!audioCtx || soundState !== 'lifting') return;
+
+                // Calculate pitch based on climb rate
+                const baseFreq = 500;
+                const maxFreq = 2000;
+                const freq = baseFreq + (vs / MAX_VS) * (maxFreq - baseFreq);
+                oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                // Calculate interval between beeps
+                const baseInterval = 800;
+                const minInterval = 100;
+                const interval = baseInterval - (vs / MAX_VS) * (baseInterval - minInterval);
+                const beepDuration = 100;
+
+                // Play a single beep
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime + beepDuration / 1000);
+
+                // Schedule the next beep
+                beepTimeout = setTimeout(() => scheduleBeep(currentVS), interval);
+            }
+
+
+            // --- Animation Loop ---
+
+            function animate() {
+                const diff = targetVS - currentVS;
+                if (Math.abs(diff) > 0.01) {
+                    currentVS += diff * INERTIA_FACTOR;
+                } else {
+                    currentVS = targetVS;
+                }
+
+                digitalReadout.textContent = `${currentVS.toFixed(1)} m/s`;
+                manageAudio(currentVS);
+                drawDial();
+                
+                requestAnimationFrame(animate);
+            }
+
+            // --- Event Listeners ---
+            let pressInterval;
+
+            const startChange = (direction) => {
+                // On first user interaction, resume audio context if needed
+                if (!userInteracted && audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                userInteracted = true;
+
+                if (pressInterval) return;
+                pressInterval = setInterval(() => {
+                    targetVS += direction * 0.5;
+                    targetVS = Math.max(MIN_VS, Math.min(MAX_VS, targetVS));
+                }, 50);
+            };
+
+            const stopChange = () => {
+                clearInterval(pressInterval);
+                pressInterval = null;
+            };
+
+            ascendBtn.addEventListener('mousedown', () => startChange(1));
+            descendBtn.addEventListener('mousedown', () => startChange(-1));
+            document.addEventListener('mouseup', stopChange);
+
+            ascendBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startChange(1); });
+            descendBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startChange(-1); });
+            document.addEventListener('touchend', stopChange);
+            document.addEventListener('touchcancel', stopChange);
+            
+            window.addEventListener('resize', () => {
+                setupCanvas();
+                drawDial();
+            });
+
+            // --- Initialization ---
+            setupCanvas();
+            setupAudio();
+            animate();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Network Matrix Walk</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; }
+        
+        /* Matrix Styling for UI */
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ff00;
+            background: rgba(0, 10, 0, 0.85);
+            padding: 15px;
+            pointer-events: none;
+            border: 1px solid #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+            border-radius: 2px;
+            max-width: 300px;
+            z-index: 10;
+            transition: opacity 0.5s;
+        }
+        .stat { color: #ccffcc; font-weight: bold; text-shadow: 0 0 5px #00ff00; }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: #00ff00;
+            background: rgba(0, 10, 0, 0.85);
+            padding: 15px;
+            border: 1px solid #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+            border-radius: 2px;
+            width: 250px;
+            z-index: 10;
+            max-height: 90vh;
+            overflow-y: auto;
+            transition: opacity 0.5s;
+        }
+        
+        .control-group { margin-bottom: 12px; }
+        .control-group label { display: block; font-size: 0.8em; color: #008800; margin-bottom: 4px; text-transform: uppercase; }
+        .control-group input[type=range] { width: 100%; cursor: pointer; accent-color: #00ff00; }
+        .val-display { float: right; color: #ccffcc; font-size: 0.9em; }
+
+        button {
+            width: 100%;
+            padding: 8px;
+            background: #002200;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        button:hover { background: #004400; box-shadow: 0 0 15px #00ff00; text-shadow: 0 0 5px #00ff00; }
+        button:active { background: #001100; }
+
+        /* Specific style for the floating toggle button */
+        #btn-toggle-ui {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: auto;
+            min-width: 100px;
+            z-index: 20;
+            opacity: 0.8;
+        }
+
+        h3 { margin-top: 0; border-bottom: 1px solid #004400; padding-bottom: 5px; font-size: 1.1em; letter-spacing: 2px; }
+
+        /* Node Labels */
+        .node-label {
+            font-family: 'Courier New', monospace;
+            color: rgba(0, 255, 0, 0.6);
+            font-size: 10px;
+            padding: 2px;
+            pointer-events: none;
+            user-select: none;
+            text-shadow: 0 0 2px #000;
+            transition: color 0.5s, background 0.5s, border 0.5s, font-size 0.5s; 
+        }
+        .node-label.visited {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 12px;
+            text-shadow: 0 0 5px #00ff00;
+            background: rgba(0, 20, 0, 0.5);
+            border: 1px solid #00ff00;
+        }
+    </style>
+    <!-- Import Map for Three.js and Addons -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="info">
+        <h3>SYSTEM MONITOR</h3>
+        <p>NODES ACCESSED: <span id="visited-count" class="stat">0</span> / <span id="total-nodes-display">40</span></p>
+        <p>CYCLES: <span id="step-count" class="stat">0</span></p>
+        <div style="font-size: 0.8em; color: #00aa00; margin-top: 10px; border-top: 1px dashed #004400; padding-top: 5px;">
+            <p>[ ] SECURE NODE</p>
+            <p>[X] COMPROMISED</p>
+            <p>(O) TRACER PROGRAM</p>
+        </div>
+    </div>
+
+    <div id="controls">
+        <h3>CONFIG</h3>
+        
+        <div class="control-group">
+            <label>Active Agents <span id="val-walkers" class="val-display">1</span></label>
+            <input type="range" id="inp-walkers" min="1" max="10" step="1" value="1">
+        </div>
+
+        <div class="control-group">
+            <label>Clock Speed <span id="val-speed" class="val-display">0.020</span></label>
+            <input type="range" id="inp-speed" min="0.001" max="0.1" step="0.001" value="0.020">
+        </div>
+
+        <!-- System Architecture Section -->
+        <div style="border-top: 1px dashed #004400; margin: 10px 0; padding-top: 10px;">
+            <label style="color: #00ff00; margin-bottom: 8px;">TOPOLOGY</label>
+            
+            <div class="control-group">
+                <label>Cluster Count <span id="val-clusters" class="val-display">3</span></label>
+                <input type="range" id="inp-clusters" min="1" max="6" step="1" value="3">
+            </div>
+
+            <div class="control-group">
+                <label>Cluster Spread <span id="val-spread" class="val-display">12</span></label>
+                <input type="range" id="inp-spread" min="5" max="30" step="1" value="12">
+            </div>
+            
+            <div class="control-group">
+                <label>Cluster Dist. <span id="val-dist" class="val-display">35</span></label>
+                <input type="range" id="inp-dist" min="10" max="60" step="5" value="35">
+            </div>
+
+            <div class="control-group">
+                <label>Interlink % <span id="val-interlink" class="val-display">10%</span></label>
+                <input type="range" id="inp-interlink" min="0" max="50" step="1" value="10">
+            </div>
+
+            <div class="control-group">
+                <label>System Size <span id="val-nodes" class="val-display">60</span></label>
+                <input type="range" id="inp-nodes" min="10" max="150" step="5" value="60">
+            </div>
+
+            <div class="control-group">
+                <label>Connections <span id="val-links" class="val-display">500</span></label>
+                <input type="range" id="inp-links" min="50" max="2000" step="50" value="500">
+            </div>
+        </div>
+
+        <button id="btn-reset">REBOOT SYSTEM</button>
+        <button id="btn-immersive">JACK IN (Immersive)</button>
+        <button id="btn-cam-follow" style="border-color: #008800; color: #008800;">Cam Follow: OFF</button>
+    </div>
+
+    <!-- UI Toggle Button -->
+    <button id="btn-toggle-ui">HIDE UI</button>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // Post Processing Imports
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- Configuration Defaults ---
+        let config = {
+            nodeCount: 60,
+            linkCount: 500,
+            walkerCount: 1,
+            walkerSpeed: 0.020,
+            clusterCount: 3,
+            clusterRadius: 12,    
+            clusterDistance: 35,  
+            globalLinkChance: 0.10 
+        };
+
+        // Matrix Colors
+        const COLOR_BG = 0x000000;
+        const COLOR_NODE_UNVISITED = 0x001100; 
+        const COLOR_NODE_VISITED = 0x008800;   
+        const COLOR_WIRE_UNVISITED = 0x004400;
+        const COLOR_WIRE_VISITED = 0xccffcc;   
+        const COLOR_LINK_DIM = 0x005500;       
+        const COLOR_LINK_VISITED = 0x00ff00;   
+        const COLOR_LINK_ACTIVE = 0x44ff44;    
+        const COLOR_WALKER = 0xffffff;         
+
+        const NODE_NAMES = [
+            "KERNEL", "DAEMON", "PROXY", "ROOT", "SHELL", "NEO", "TRINITY", "MORPHEUS", 
+            "CYPHER", "TANK", "DOZER", "SWITCH", "APOC", "MOUSE", "SMITH", "BROWN", 
+            "JONES", "ORACLE", "SERAPH", "KEYMAKER", "MERV", "PERSEPHONE", "GHOST", 
+            "SPARKS", "NIOBE", "LINK", "ZEE", "BANE", "VECTOR", "BINARY", "HEX", 
+            "BUFFER", "STACK", "HEAP", "HASH", "CRYPTO", "CIPHER", "ECHO", "PING", 
+            "PACKET", "FRAME", "LOG", "NULL", "VOID", "ZERO", "ONE", "AXIS", "GRID",
+            "SECTOR", "BLOCK", "CHAIN", "NODE", "GATE", "PORT", "SOCKET"
+        ];
+
+        const GLITCH_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?/';
+
+        // --- Global Variables ---
+        let scene, camera, renderer, labelRenderer, composer, controls, bloomPass;
+        let nodes = []; 
+        let links = []; 
+        let walkers = []; 
+        
+        let visitedCount = 0;
+        let totalSteps = 0;
+        let isResetting = false;
+        let isFinale = false; 
+        
+        let isImmersive = false;
+        let savedCameraPos = new THREE.Vector3();
+        let savedControlsTarget = new THREE.Vector3();
+        const immersiveDummy = new THREE.Object3D(); 
+        
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let immersiveCamSpherical = new THREE.Spherical(12, Math.PI / 3, 0); 
+        let isCamFollowOn = false; 
+
+        // DOM Elements
+        const uiVisited = document.getElementById('visited-count');
+        const uiTotalNodes = document.getElementById('total-nodes-display');
+        const uiSteps = document.getElementById('step-count');
+        const uiInfo = document.getElementById('info');
+        const uiControls = document.getElementById('controls');
+        
+        const inpSpeed = document.getElementById('inp-speed');
+        const valSpeed = document.getElementById('val-speed');
+        
+        const inpClusters = document.getElementById('inp-clusters');
+        const valClusters = document.getElementById('val-clusters');
+        const inpSpread = document.getElementById('inp-spread');
+        const valSpread = document.getElementById('val-spread');
+        const inpDist = document.getElementById('inp-dist');
+        const valDist = document.getElementById('val-dist');
+        const inpInterlink = document.getElementById('inp-interlink');
+        const valInterlink = document.getElementById('val-interlink');
+
+        const inpNodes = document.getElementById('inp-nodes');
+        const valNodes = document.getElementById('val-nodes');
+        const inpLinks = document.getElementById('inp-links');
+        const valLinks = document.getElementById('val-links');
+        const inpWalkers = document.getElementById('inp-walkers');
+        const valWalkers = document.getElementById('val-walkers');
+        const btnReset = document.getElementById('btn-reset');
+        const btnImmersive = document.getElementById('btn-immersive');
+        const btnCamFollow = document.getElementById('btn-cam-follow');
+        const btnToggleUI = document.getElementById('btn-toggle-ui');
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(COLOR_BG);
+            scene.fog = new THREE.FogExp2(COLOR_BG, 0.010);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(40, 40, 60);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            document.body.appendChild(renderer.domElement);
+
+            labelRenderer = new CSS2DRenderer();
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0px';
+            labelRenderer.domElement.style.pointerEvents = 'none';
+            document.body.appendChild(labelRenderer.domElement);
+
+            const renderScene = new RenderPass(scene, camera);
+            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0;
+            bloomPass.strength = 0.6; 
+            bloomPass.radius = 0.5;
+
+            const outputPass = new OutputPass();
+
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+            composer.addPass(outputPass);
+
+            controls = new OrbitControls(camera, renderer.domElement); 
+            controls.enableDamping = true;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.3; 
+
+            const ambientLight = new THREE.AmbientLight(0x004400); 
+            scene.add(ambientLight);
+
+            const gridHelper = new THREE.GridHelper(300, 60, 0x004400, 0x001100);
+            gridHelper.position.y = -40;
+            scene.add(gridHelper);
+
+            setupUI();
+            setupInput(); 
+            generateGraph();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function setupInput() {
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                if (isImmersive) {
+                    isDragging = true;
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
+            });
+
+            window.addEventListener('mouseup', () => isDragging = false);
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (isImmersive && isDragging) {
+                    const deltaMove = {
+                        x: e.clientX - previousMousePosition.x,
+                        y: e.clientY - previousMousePosition.y
+                    };
+
+                    immersiveCamSpherical.theta -= deltaMove.x * 0.005;
+                    immersiveCamSpherical.phi -= deltaMove.y * 0.005;
+                    immersiveCamSpherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, immersiveCamSpherical.phi));
+
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
+            });
+
+            renderer.domElement.addEventListener('wheel', (e) => {
+                if (isImmersive) {
+                    immersiveCamSpherical.radius += e.deltaY * 0.01;
+                    immersiveCamSpherical.radius = Math.max(4, Math.min(50, immersiveCamSpherical.radius));
+                }
+            });
+        }
+
+        function toggleUI(forceHide = false) {
+            const isVisible = uiInfo.style.display !== 'none';
+            if (isVisible || forceHide) {
+                uiInfo.style.display = 'none';
+                uiControls.style.display = 'none';
+                btnToggleUI.innerText = "SHOW UI";
+            } else {
+                uiInfo.style.display = 'block';
+                uiControls.style.display = 'block';
+                btnToggleUI.innerText = "HIDE UI";
+            }
+        }
+
+        function setupUI() {
+            // Speed - Immediate
+            inpSpeed.addEventListener('input', (e) => {
+                config.walkerSpeed = parseFloat(e.target.value);
+                valSpeed.innerText = config.walkerSpeed.toFixed(3);
+            });
+
+            // Structural Params - Regenerate on Change (Mouse Up)
+            const structuralInputs = [inpWalkers, inpClusters, inpInterlink, inpNodes, inpLinks];
+            structuralInputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    refreshConfig();
+                    generateGraph();
+                });
+            });
+
+            // Structural UI Updates
+            inpWalkers.addEventListener('input', (e) => valWalkers.innerText = e.target.value);
+            inpClusters.addEventListener('input', (e) => valClusters.innerText = e.target.value);
+            inpInterlink.addEventListener('input', (e) => valInterlink.innerText = e.target.value + "%");
+            inpNodes.addEventListener('input', (e) => valNodes.innerText = e.target.value);
+            inpLinks.addEventListener('input', (e) => valLinks.innerText = e.target.value);
+
+            // Spatial Params - Real-time Update (Geometry Morphing)
+            inpSpread.addEventListener('input', (e) => {
+                valSpread.innerText = e.target.value;
+                config.clusterRadius = parseInt(e.target.value);
+                updateGeometryOnly(); // Move nodes live
+            });
+
+            inpDist.addEventListener('input', (e) => {
+                valDist.innerText = e.target.value;
+                config.clusterDistance = parseInt(e.target.value);
+                updateGeometryOnly(); // Move nodes live
+            });
+
+            btnReset.addEventListener('click', () => {
+                refreshConfig();
+                generateGraph();
+            });
+
+            btnImmersive.addEventListener('click', toggleImmersive);
+            
+            btnCamFollow.addEventListener('click', () => {
+                isCamFollowOn = !isCamFollowOn;
+                if (isCamFollowOn) {
+                    btnCamFollow.innerText = "Cam Follow: ON";
+                    btnCamFollow.style.borderColor = "#00ff00";
+                    btnCamFollow.style.color = "#00ff00";
+                } else {
+                    btnCamFollow.innerText = "Cam Follow: OFF";
+                    btnCamFollow.style.borderColor = "#008800";
+                    btnCamFollow.style.color = "#008800";
+                }
+            });
+
+            btnToggleUI.addEventListener('click', () => toggleUI());
+        }
+
+        function refreshConfig() {
+            config.nodeCount = parseInt(inpNodes.value);
+            config.linkCount = parseInt(inpLinks.value);
+            config.walkerCount = parseInt(inpWalkers.value);
+            config.clusterCount = parseInt(inpClusters.value);
+            config.clusterRadius = parseInt(inpSpread.value);
+            config.clusterDistance = parseInt(inpDist.value);
+            config.globalLinkChance = parseInt(inpInterlink.value) / 100;
+        }
+
+        // New function to morph geometry without regenerating connections
+        function updateGeometryOnly() {
+            const clusterCenters = [];
+            const angleStep = (Math.PI * 2) / config.clusterCount;
+            
+            // Recalculate centers
+            for(let i = 0; i < config.clusterCount; i++) {
+                const angle = i * angleStep;
+                // Preserve yOffset logic but we need to know the original random yOffset to match exactly
+                // Simplified: Re-calculate theoretical flat centers, assuming y-noise is part of node pos
+                clusterCenters.push(new THREE.Vector3(
+                    Math.cos(angle) * config.clusterDistance,
+                    0, // Y is handled by node's stored relative data
+                    Math.sin(angle) * config.clusterDistance
+                ));
+            }
+
+            nodes.forEach(node => {
+                const center = clusterCenters[node.clusterId % config.clusterCount];
+                
+                // Reconstruct position from stored polar coords
+                const r = config.clusterRadius * node.rRatio; // Use stored radius ratio
+                
+                // Calculate new position
+                const x = center.x + (r * Math.sin(node.phi) * Math.cos(node.theta));
+                const y = node.yBase + (r * Math.sin(node.phi) * Math.sin(node.theta)); // Preserve Y randomness
+                const z = center.z + (r * Math.cos(node.phi));
+
+                node.mesh.position.set(x, y, z);
+            });
+
+            // Update Links
+            links.forEach(link => {
+                const p1 = nodes[link.source].mesh.position;
+                const p2 = nodes[link.target].mesh.position;
+                link.mesh.geometry.setFromPoints([p1, p2]);
+                // Need to notify three.js that geometry changed
+                link.mesh.geometry.attributes.position.needsUpdate = true; 
+            });
+        }
+
+        function toggleImmersive() {
+            isImmersive = !isImmersive;
+
+            if (isImmersive) {
+                toggleUI(true);
+
+                btnImmersive.innerText = "EJECT (Exit)";
+                btnImmersive.style.background = "#440000";
+                btnImmersive.style.borderColor = "#ff0000";
+                btnImmersive.style.color = "#ffcccc";
+                btnImmersive.style.boxShadow = "0 0 10px #ff0000";
+
+                config.walkerSpeed = 0.005;
+                inpSpeed.value = "0.005";
+                valSpeed.innerText = "0.005";
+
+                isCamFollowOn = true;
+                btnCamFollow.innerText = "Cam Follow: ON";
+                btnCamFollow.style.borderColor = "#00ff00";
+                btnCamFollow.style.color = "#00ff00";
+
+                savedCameraPos.copy(camera.position);
+                savedControlsTarget.copy(controls.target);
+
+                controls.enabled = false;
+                
+                if (walkers.length > 0) {
+                    const w = walkers[0];
+                    w.mesh.visible = true; 
+
+                    let dir = new THREE.Vector3(0, 0, 1);
+                    if (w.target !== null && nodes[w.target]) {
+                         const p1 = nodes[w.current].mesh.position;
+                         const p2 = nodes[w.target].mesh.position;
+                         if (p1.distanceToSquared(p2) > 0.001) { 
+                             dir.subVectors(p2, p1).normalize();
+                         }
+                    }
+
+                    const startOffset = dir.clone().multiplyScalar(-10).add(new THREE.Vector3(0, 5, 0));
+                    immersiveCamSpherical.setFromVector3(startOffset);
+                    
+                    camera.position.copy(w.mesh.position).add(startOffset);
+                    camera.lookAt(w.mesh.position);
+                }
+            } else {
+                uiInfo.style.display = 'block';
+                uiControls.style.display = 'block';
+                btnToggleUI.innerText = "HIDE UI";
+
+                btnImmersive.innerText = "JACK IN (Immersive)";
+                btnImmersive.style.background = "#002200";
+                btnImmersive.style.borderColor = "#00ff00";
+                btnImmersive.style.color = "#00ff00";
+                btnImmersive.style.boxShadow = "none";
+
+                camera.position.copy(savedCameraPos);
+                controls.target.copy(savedControlsTarget);
+                
+                controls.enabled = true;
+                if (walkers.length > 0) {
+                    walkers[0].mesh.visible = true;
+                }
+            }
+        }
+
+        function clearScene() {
+            nodes.forEach(n => {
+                scene.remove(n.mesh);
+                n.mesh.geometry.dispose();
+                n.mesh.material.dispose();
+                if (n.labelDiv && n.labelDiv.parentNode) {
+                    n.labelDiv.parentNode.removeChild(n.labelDiv);
+                }
+            });
+            nodes = [];
+
+            links.forEach(l => {
+                scene.remove(l.mesh);
+                l.mesh.geometry.dispose();
+                l.mesh.material.dispose();
+            });
+            links = [];
+
+            walkers.forEach(w => {
+                scene.remove(w.mesh);
+                w.mesh.traverse((child) => {
+                    if (child.isMesh) {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(m => m.dispose());
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    }
+                });
+            });
+            walkers = [];
+        }
+
+        function buildStarship() {
+            const shipGroup = new THREE.Group();
+
+            const mainMaterial = new THREE.MeshStandardMaterial({
+                color: 0x00ffff, 
+                emissive: 0x00aaaa,
+                emissiveIntensity: 1.0,
+                roughness: 0.3,
+                metalness: 0.8
+            });
+
+            const engineMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+            });
+
+            const hullGeo = new THREE.ConeGeometry(0.6, 2.5, 8);
+            hullGeo.rotateX(Math.PI / 2); 
+            const hull = new THREE.Mesh(hullGeo, mainMaterial);
+            shipGroup.add(hull);
+
+            const wingGeo = new THREE.BoxGeometry(3, 0.1, 1.2);
+            const wings = new THREE.Mesh(wingGeo, mainMaterial);
+            wings.position.z = -0.5;
+            shipGroup.add(wings);
+
+            const engineGeo = new THREE.CylinderGeometry(0.2, 0.3, 0.6, 8);
+            engineGeo.rotateX(Math.PI / 2);
+            
+            const engineLeft = new THREE.Mesh(engineGeo, engineMaterial);
+            engineLeft.position.set(-1.0, 0, -1.3);
+            shipGroup.add(engineLeft);
+
+            const engineRight = new THREE.Mesh(engineGeo, engineMaterial);
+            engineRight.position.set(1.0, 0, -1.3);
+            shipGroup.add(engineRight);
+
+            const wireframeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.4 });
+            shipGroup.add(new THREE.Mesh(hullGeo, wireframeMat));
+            shipGroup.add(new THREE.Mesh(wingGeo, wireframeMat));
+
+            shipGroup.scale.set(0.4, 0.4, 0.4);
+
+            return shipGroup;
+        }
+
+        function createWalker() {
+            const mesh = buildStarship();
+            scene.add(mesh);
+
+            const light = new THREE.PointLight(0x00ffff, 5, 15);
+            light.position.set(0, 0.5, -1); 
+            mesh.add(light);
+
+            const startIdx = Math.floor(Math.random() * config.nodeCount);
+            if (nodes[startIdx]) {
+                mesh.position.copy(nodes[startIdx].mesh.position);
+                visitNode(startIdx);
+            }
+
+            return {
+                mesh: mesh,
+                light: light,
+                current: startIdx,
+                prev: null,
+                target: null,
+                link: null,
+                progress: 0
+            };
+        }
+
+        function generateGraph() {
+            clearScene();
+
+            isResetting = false; 
+            isFinale = false;
+            
+            if (bloomPass) {
+                bloomPass.strength = 0.6;
+                bloomPass.radius = 0.5;
+            }
+            if (controls) controls.autoRotateSpeed = 0.3;
+            if (scene) scene.background.setHex(COLOR_BG);
+
+            visitedCount = 0;
+            totalSteps = 0;
+            uiVisited.innerText = "0";
+            uiSteps.innerText = "0";
+            uiTotalNodes.innerText = config.nodeCount;
+
+            const nodeGeometry = new THREE.IcosahedronGeometry(1.2, 0); 
+            
+            const clusterCenters = [];
+            const angleStep = (Math.PI * 2) / config.clusterCount;
+            
+            for(let i = 0; i < config.clusterCount; i++) {
+                const angle = i * angleStep;
+                // Store base Y offsets for clusters (not updated in real-time drag to avoid jitter)
+                clusterCenters.push(new THREE.Vector3(
+                    Math.cos(angle) * config.clusterDistance,
+                    (Math.random() - 0.5) * 10, 
+                    Math.sin(angle) * config.clusterDistance
+                ));
+            }
+
+            for (let i = 0; i < config.nodeCount; i++) {
+                const clusterIdx = i % config.clusterCount;
+                const center = clusterCenters[clusterIdx];
+
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                const rRatio = Math.cbrt(Math.random()); // Store ratio (0-1) instead of absolute radius
+                const r = config.clusterRadius * rRatio;
+
+                const x = center.x + (r * Math.sin(phi) * Math.cos(theta));
+                const y = center.y + (r * Math.sin(phi) * Math.sin(theta));
+                const z = center.z + (r * Math.cos(phi));
+
+                const material = new THREE.MeshBasicMaterial({
+                    color: COLOR_WIRE_UNVISITED,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.5
+                });
+
+                const mesh = new THREE.Mesh(nodeGeometry, material);
+                mesh.position.set(x, y, z);
+                scene.add(mesh);
+
+                const name = NODE_NAMES[Math.floor(Math.random() * NODE_NAMES.length)] + "_" + Math.floor(Math.random() * 99);
+                const div = document.createElement('div');
+                div.className = 'node-label';
+                div.textContent = name;
+                
+                const label = new CSS2DObject(div);
+                label.position.set(0, 1.5, 0); 
+                mesh.add(label);
+
+                nodes.push({
+                    id: i,
+                    clusterId: clusterIdx,
+                    // Store polar coords for real-time morphing
+                    theta: theta,
+                    phi: phi,
+                    rRatio: rRatio,
+                    yBase: center.y, // Keep the cluster's random height
+                    
+                    mesh: mesh,
+                    labelObj: label,
+                    labelDiv: div,
+                    originalName: name,
+                    finaleScale: 1.0, 
+                    neighbors: [],
+                    links: [],
+                    isVisited: false
+                });
+            }
+
+            const connectionSet = new Set();
+            const linkMaterialTemplate = new THREE.LineBasicMaterial({ 
+                color: COLOR_LINK_DIM, 
+                transparent: true, 
+                opacity: 0.3,
+                blending: THREE.AdditiveBlending 
+            });
+
+            let linksCreated = 0;
+            let attempts = 0;
+            const maxAttempts = config.linkCount * 10;
+
+            const nodesByCluster = Array.from({ length: config.clusterCount }, () => []);
+            nodes.forEach(n => nodesByCluster[n.clusterId].push(n.id));
+
+            while (linksCreated < config.linkCount && attempts < maxAttempts) {
+                attempts++;
+                
+                let sourceIdx, targetIdx;
+                
+                const isGlobal = Math.random() < config.globalLinkChance;
+
+                if (!isGlobal) {
+                    const cIdx = Math.floor(Math.random() * config.clusterCount);
+                    const clusterNodes = nodesByCluster[cIdx];
+                    if (clusterNodes.length < 2) continue;
+
+                    const idx1 = Math.floor(Math.random() * clusterNodes.length);
+                    let idx2 = Math.floor(Math.random() * clusterNodes.length);
+                    while(idx1 === idx2) idx2 = Math.floor(Math.random() * clusterNodes.length);
+                    
+                    sourceIdx = clusterNodes[idx1];
+                    targetIdx = clusterNodes[idx2];
+                } else {
+                    const c1 = Math.floor(Math.random() * config.clusterCount);
+                    let c2 = Math.floor(Math.random() * config.clusterCount);
+                    if (config.clusterCount > 1) {
+                         while(c1 === c2) c2 = Math.floor(Math.random() * config.clusterCount);
+                    }
+                    
+                    const nodes1 = nodesByCluster[c1];
+                    const nodes2 = nodesByCluster[c2];
+                    
+                    if(nodes1.length === 0 || nodes2.length === 0) continue;
+
+                    sourceIdx = nodes1[Math.floor(Math.random() * nodes1.length)];
+                    targetIdx = nodes2[Math.floor(Math.random() * nodes2.length)];
+                }
+
+                if (sourceIdx === targetIdx) continue;
+
+                const key = sourceIdx < targetIdx ? `${sourceIdx}-${targetIdx}` : `${targetIdx}-${sourceIdx}`;
+                if (connectionSet.has(key)) continue;
+
+                connectionSet.add(key);
+
+                nodes[sourceIdx].neighbors.push(targetIdx);
+                nodes[targetIdx].neighbors.push(sourceIdx);
+
+                const p1 = nodes[sourceIdx].mesh.position;
+                const p2 = nodes[targetIdx].mesh.position;
+                
+                const geometry = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+                const material = linkMaterialTemplate.clone(); 
+                
+                const line = new THREE.Line(geometry, material);
+                scene.add(line);
+
+                const linkObj = {
+                    mesh: line,
+                    source: sourceIdx,
+                    target: targetIdx,
+                    activeDecay: 0,
+                    isVisited: false 
+                };
+
+                links.push(linkObj);
+                nodes[sourceIdx].links.push(linkObj);
+                nodes[targetIdx].links.push(linkObj);
+
+                linksCreated++;
+            }
+
+            for (let i = 0; i < config.walkerCount; i++) {
+                const w = createWalker();
+                walkers.push(w);
+                walkerPickTarget(w);
+            }
+        }
+
+        function visitNode(index) {
+            const node = nodes[index];
+            if (!node) return;
+
+            if (!node.isVisited) {
+                node.isVisited = true;
+                visitedCount++;
+                uiVisited.innerText = visitedCount;
+                
+                node.mesh.material.color.setHex(COLOR_NODE_VISITED);
+                node.mesh.material.opacity = 1.0;
+                
+                node.mesh.scale.set(1.5, 1.5, 1.5);
+
+                if (visitedCount >= config.nodeCount && !isResetting) {
+                    isResetting = true;
+                    isFinale = true; 
+                }
+
+            } else {
+                node.mesh.scale.set(1.2, 1.2, 1.2);
+            }
+        }
+
+        function walkerPickTarget(walker) {
+            if (isResetting) return;
+
+            const currentNode = nodes[walker.current];
+            const neighbors = currentNode.neighbors;
+
+            if (neighbors.length === 0) {
+                walker.prev = null;
+                walker.current = Math.floor(Math.random() * config.nodeCount);
+                return;
+            }
+
+            let candidates = neighbors;
+            
+            if (neighbors.length > 1 && walker.prev !== null) {
+                const forwardCandidates = neighbors.filter(nIdx => nIdx !== walker.prev);
+                if (forwardCandidates.length > 0) {
+                    candidates = forwardCandidates;
+                }
+            }
+
+            walker.target = candidates[Math.floor(Math.random() * candidates.length)];
+            
+            const linkObj = currentNode.links.find(l => 
+                (l.source === walker.current && l.target === walker.target) ||
+                (l.target === walker.current && l.source === walker.target)
+            );
+            
+            walker.link = linkObj;
+            
+            if (walker.link) {
+                walker.link.isVisited = true; 
+                walker.link.activeDecay = 1.0;
+                walker.link.mesh.material.opacity = 1.0;
+                walker.link.mesh.material.color.setHex(COLOR_LINK_ACTIVE);
+                walker.link.mesh.material.linewidth = 4;
+            }
+
+            walker.progress = 0;
+            totalSteps++;
+            uiSteps.innerText = totalSteps;
+        }
+
+        function updateGlitch() {
+            nodes.forEach(node => {
+                if (Math.random() < 0.01) { 
+                    if (!node.labelDiv.classList.contains('glitched')) {
+                        let newText = node.originalName.split('');
+                        let numGlitches = Math.floor(Math.random() * 3) + 1;
+                        for(let i=0; i<numGlitches; i++) {
+                            let charIdx = Math.floor(Math.random() * newText.length);
+                            newText[charIdx] = GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+                        }
+                        node.labelDiv.textContent = newText.join('');
+                        node.labelDiv.classList.add('glitched');
+                    } 
+                    else {
+                        node.labelDiv.textContent = node.originalName;
+                        node.labelDiv.classList.remove('glitched');
+                    }
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isFinale && bloomPass) {
+                bloomPass.strength *= 1.05;
+                bloomPass.radius += 0.01; 
+                
+                controls.autoRotateSpeed += 0.05; 
+                
+                scene.background.lerp(new THREE.Color(0x00ff00), 0.03); 
+
+                nodes.forEach(node => {
+                    node.finaleScale *= 1.05; 
+                    node.labelObj.scale.set(node.finaleScale, node.finaleScale, 1.0);
+                    
+                    const newOpacity = Math.max(0, 1.0 - (node.finaleScale - 1.0) * 0.15);
+                    node.labelDiv.style.opacity = newOpacity;
+                });
+
+                if (bloomPass.strength > 30.0) {
+                    generateGraph();
+                    return; 
+                }
+            }
+
+            if (isImmersive) {
+                const mainWalker = walkers[0];
+                if (mainWalker) {
+                    
+                    if (isCamFollowOn && mainWalker.target !== null && nodes[mainWalker.target]) {
+                        const p1 = nodes[mainWalker.current].mesh.position;
+                        const p2 = nodes[mainWalker.target].mesh.position;
+                        const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+                        
+                        const currentOffset = new THREE.Vector3().setFromSpherical(immersiveCamSpherical);
+                        const desiredOffset = dir.clone().multiplyScalar(-immersiveCamSpherical.radius);
+                        desiredOffset.y = currentOffset.y;
+                        
+                        currentOffset.lerp(desiredOffset, 0.05);
+                        
+                        immersiveCamSpherical.setFromVector3(currentOffset);
+                        
+                        immersiveCamSpherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, immersiveCamSpherical.phi));
+                    }
+                    
+                    const camOffset = new THREE.Vector3().setFromSpherical(immersiveCamSpherical);
+                    
+                    const targetPos = mainWalker.mesh.position.clone().add(camOffset);
+                    
+                    camera.position.lerp(targetPos, 0.2);
+                    
+                    camera.lookAt(mainWalker.mesh.position);
+                }
+            } else {
+                controls.update();
+            }
+
+            walkers.forEach(walker => {
+                if (walker.target !== null) {
+                    const p1 = nodes[walker.current].mesh.position;
+                    const p2 = nodes[walker.target].mesh.position;
+                    
+                    const dist = p1.distanceTo(p2);
+                    const moveStep = (config.walkerSpeed * 30) / Math.max(0.1, dist);
+                    
+                    walker.progress += moveStep;
+
+                    walker.mesh.position.lerpVectors(p1, p2, walker.progress);
+                    
+                    walker.mesh.lookAt(p2);
+
+                    if (walker.progress >= 1) {
+                        walker.mesh.position.copy(p2);
+                        
+                        walker.prev = walker.current;
+                        walker.current = walker.target;
+                        
+                        visitNode(walker.current);
+                        walkerPickTarget(walker);
+                    }
+                }
+            });
+
+            links.forEach(link => {
+                if (link.activeDecay > 0) {
+                    let isOccupied = false;
+                    for(let w of walkers) {
+                        if (w.link === link && w.progress < 1) {
+                            isOccupied = true;
+                            break;
+                        }
+                    }
+
+                    if (!isOccupied) {
+                         link.activeDecay -= 0.02; 
+                    }
+                    
+                    if (link.activeDecay <= 0) {
+                        link.activeDecay = 0;
+                        
+                        if (link.isVisited) {
+                            link.mesh.material.color.setHex(COLOR_LINK_VISITED);
+                            link.mesh.material.opacity = 0.5; 
+                        } else {
+                            link.mesh.material.color.setHex(COLOR_LINK_DIM);
+                            link.mesh.material.opacity = 0.3;
+                        }
+                    } else {
+                        const baseOpacity = link.isVisited ? 0.5 : 0.3;
+                        link.mesh.material.opacity = baseOpacity + ((1.0 - baseOpacity) * link.activeDecay);
+                    }
+                }
+            });
+
+            nodes.forEach(node => {
+                if (node.mesh.scale.x > 1.0) {
+                    node.mesh.scale.x -= 0.02;
+                    node.mesh.scale.y -= 0.02;
+                    node.mesh.scale.z -= 0.02;
+                }
+                if (node.mesh.scale.x < 1.0) node.mesh.scale.set(1, 1, 1);
+            });
+
+            updateGlitch();
+            composer.render();
+            labelRenderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
