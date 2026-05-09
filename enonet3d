@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generative Ambient Network</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050510;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        #start-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 16, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+            transition: opacity 1s ease;
+        }
+
+        .title-text {
+            font-size: 3rem;
+            font-weight: 200;
+            letter-spacing: 0.5rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(100, 200, 255, 0.5);
+        }
+
+        .subtitle-text {
+            font-size: 1.2rem;
+            font-weight: 300;
+            color: #aaa;
+            margin-bottom: 3rem;
+            text-align: center;
+            max-width: 600px;
+            line-height: 1.5;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: transparent;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.2rem;
+            outline: none;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            display: none; /* Shown after start */
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            letter-spacing: 0.1rem;
+            color: #aaa;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        input[type=range] {
+            width: 200px;
+            accent-color: #7abfff;
+        }
+
+        #info {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            pointer-events: auto;
+            font-size: 0.9rem;
+            color: #888;
+            letter-spacing: 0.05rem;
+            display: none;
+        }
+    </style>
+    <!-- Include Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <div id="start-overlay">
+            <div class="title-text">Aether Network</div>
+            <div class="subtitle-text">A generative ambient synthesizer. Random walkers navigate a 3D topology; their collisions trigger harmonically tuned nodes, cascading into endless generative soundscapes.</div>
+            <button id="start-btn">Initialize System</button>
+        </div>
+
+        <div id="info">
+            Rotate: Left Click & Drag<br>
+            Zoom: Scroll
+        </div>
+
+        <div id="controls">
+            <div class="control-group">
+                <label for="speed-slider">Walker Speed: <span id="speed-val">Medium</span></label>
+                <input type="range" id="speed-slider" min="0.1" max="5.0" step="0.1" value="1.5">
+            </div>
+            <div class="control-group">
+                <label for="count-slider">Active Walkers: <span id="count-val">4</span></label>
+                <input type="range" id="count-slider" min="1" max="15" step="1" value="4">
+            </div>
+            <div class="control-group">
+                <label for="size-slider">Network Size: <span id="size-val">80</span></label>
+                <input type="range" id="size-slider" min="20" max="250" step="10" value="80">
+            </div>
+            <div class="control-group">
+                <label for="cluster-slider">Clusters: <span id="cluster-val">1</span></label>
+                <input type="range" id="cluster-slider" min="1" max="8" step="1" value="1">
+            </div>
+            <div class="control-group">
+                <label for="interconnect-slider">Interconnect: <span id="interconnect-val">4</span></label>
+                <input type="range" id="interconnect-slider" min="1" max="12" step="1" value="4">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- AUDIO ENGINE ---
+        let audioCtx;
+        let masterGain;
+        let convolver;
+        let delay;
+        let delayFeedback;
+        let dryGain, wetGain;
+
+        // C Major Pentatonic extended across octaves (C2 to C6)
+        const scaleFrequencies = [
+            65.41, 73.42, 82.41, 98.00, 110.00, // C2 - A2
+            130.81, 146.83, 164.81, 196.00, 220.00, // C3 - A3
+            261.63, 293.66, 329.63, 392.00, 440.00, // C4 - A4
+            523.25, 587.33, 659.25, 783.99, 880.00, // C5 - A5
+            1046.50, 1174.66, 1318.51, 1567.98, 1760.00 // C6 - A6
+        ];
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.6; // Master volume
+            masterGain.connect(audioCtx.destination);
+
+            dryGain = audioCtx.createGain();
+            dryGain.gain.value = 0.7;
+            dryGain.connect(masterGain);
+
+            wetGain = audioCtx.createGain();
+            wetGain.gain.value = 0.6;
+            wetGain.connect(masterGain);
+
+            // Create massive Reverb (Convolver with synthesized impulse response)
+            convolver = audioCtx.createConvolver();
+            convolver.buffer = createReverbIR(audioCtx, 4.0, 3.0); // 4 seconds decay
+            convolver.connect(wetGain);
+
+            // Create sweeping Ping-Pong/Feedback Delay
+            delay = audioCtx.createDelay(5.0);
+            delay.delayTime.value = 0.75; // 750ms
+            delayFeedback = audioCtx.createGain();
+            delayFeedback.gain.value = 0.5; // Feedback amount
+            
+            // Filter in the delay feedback loop to darken repeats (tape style)
+            const delayFilter = audioCtx.createBiquadFilter();
+            delayFilter.type = 'lowpass';
+            delayFilter.frequency.value = 1500;
+
+            delay.connect(delayFilter);
+            delayFilter.connect(delayFeedback);
+            delayFeedback.connect(delay);
+            
+            delay.connect(wetGain);
+            delay.connect(convolver); // Feed delay into reverb for huge space
+        }
+
+        // Generate synthetic impulse response for lush reverb
+        function createReverbIR(context, duration, decay) {
+            const sampleRate = context.sampleRate;
+            const length = sampleRate * duration;
+            const impulse = context.createBuffer(2, length, sampleRate);
+            const left = impulse.getChannelData(0);
+            const right = impulse.getChannelData(1);
+            
+            for (let i = 0; i < length; i++) {
+                // Envelope for the noise
+                const multiplier = Math.pow(1 - i / length, decay);
+                // Gaussian-ish noise for smoother reverb
+                left[i] = (Math.random() * 2 - 1) * multiplier * 0.5;
+                right[i] = (Math.random() * 2 - 1) * multiplier * 0.5;
+            }
+            return impulse;
+        }
+
+        function playNodeAudio(frequency) {
+            if (!audioCtx) return;
+
+            const t = audioCtx.currentTime;
+            
+            // Envelope timing (Eno style: slow attack, very long release)
+            const attackTime = 1.5 + Math.random();
+            const decayTime = 1.0;
+            const sustainLevel = 0.6;
+            const releaseTime = 4.0 + Math.random() * 3.0;
+
+            // Voice Gain (Envelope)
+            const vca = audioCtx.createGain();
+            vca.gain.setValueAtTime(0, t);
+            vca.gain.linearRampToValueAtTime(1.0, t + attackTime);
+            vca.gain.setTargetAtTime(sustainLevel, t + attackTime, decayTime);
+            
+            // Route to mix
+            vca.connect(dryGain);
+            vca.connect(delay);
+            vca.connect(convolver);
+
+            // Oscillator 1 (Sine, fundamental)
+            const osc1 = audioCtx.createOscillator();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(frequency, t);
+
+            // Oscillator 2 (Triangle, slightly detuned for chorus effect)
+            const osc2 = audioCtx.createOscillator();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(frequency, t);
+            osc2.detune.setValueAtTime(Math.random() * 10 - 5, t); // +/- 5 cents
+            
+            // Mix oscillators together
+            const oscMix = audioCtx.createGain();
+            oscMix.gain.value = 0.5;
+            osc1.connect(oscMix);
+            osc2.connect(oscMix);
+
+            // Filter to make triangle wave mellower
+            const vcf = audioCtx.createBiquadFilter();
+            vcf.type = 'lowpass';
+            vcf.frequency.setValueAtTime(frequency * 3, t); // Filter tracks pitch
+            vcf.Q.value = 0.5;
+            
+            oscMix.connect(vcf);
+            vcf.connect(vca);
+
+            // Start & Stop
+            osc1.start(t);
+            osc2.start(t);
+
+            // Release phase schedule
+            const duration = attackTime + 1.0; // Wait at sustain briefly
+            vca.gain.setTargetAtTime(0, t + duration, releaseTime / 3);
+
+            // Cleanup to prevent memory leaks
+            const totalDuration = t + duration + releaseTime + 1.0;
+            osc1.stop(totalDuration);
+            osc2.stop(totalDuration);
+            
+            setTimeout(() => {
+                osc1.disconnect();
+                osc2.disconnect();
+                vcf.disconnect();
+                vca.disconnect();
+            }, (duration + releaseTime + 2.0) * 1000);
+        }
+
+
+        // --- VISUAL ENGINE (Three.js) ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050510, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 60);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+
+        // Group to hold the entire network
+        const networkGroup = new THREE.Group();
+        scene.add(networkGroup);
+
+        // Materials
+        const nodeBaseColor = new THREE.Color(0x2a5b84);
+        const nodeActiveColor = new THREE.Color(0xffffff);
+        
+        const nodeMaterialTemplate = new THREE.MeshBasicMaterial({
+            color: nodeBaseColor,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+
+        const edgeMaterial = new THREE.LineBasicMaterial({
+            color: 0x4a90e2, // Brighter blue
+            transparent: true,
+            opacity: 0.7,    // Increased visibility
+            blending: THREE.AdditiveBlending
+        });
+
+        const walkerMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffddaa,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending
+        });
+
+        const nodeGeometry = new THREE.SphereGeometry(0.6, 16, 16);
+        const walkerGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+
+        // Network Data structures
+        let numNodes = 80;
+        let numClusters = 1;
+        let maxConnections = 4;
+        
+        const nodes = [];
+        let edgesLine = null;
+        const walkers = [];
+
+        // App State
+        // App State
+        let walkerBaseSpeed = 1.5;
+        let targetWalkerCount = 4;
+
+        function buildNetwork() {
+            // Clean up existing network meshes
+            nodes.forEach(n => {
+                networkGroup.remove(n.mesh);
+                if (n.mesh.geometry) n.mesh.geometry.dispose();
+            });
+            nodes.length = 0;
+            
+            walkers.forEach(w => {
+                networkGroup.remove(w.mesh);
+                if (w.mesh.geometry) w.mesh.geometry.dispose();
+            });
+            walkers.length = 0;
+
+            if (edgesLine) {
+                networkGroup.remove(edgesLine);
+                if (edgesLine.geometry) edgesLine.geometry.dispose();
+                edgesLine = null;
+            }
+
+            // 1. Generate Cluster Centers
+            const clusterCenters = [];
+            for (let i = 0; i < numClusters; i++) {
+                if (numClusters === 1) {
+                    clusterCenters.push(new THREE.Vector3(0, 0, 0));
+                } else {
+                    clusterCenters.push(new THREE.Vector3(
+                        (Math.random() - 0.5) * 50,
+                        (Math.random() - 0.5) * 50,
+                        (Math.random() - 0.5) * 50
+                    ));
+                }
+            }
+
+            // 2. Generate Nodes around clusters
+            for (let i = 0; i < numNodes; i++) {
+                const cluster = clusterCenters[i % numClusters];
+                // Make radius smaller if there are multiple clusters to emphasize separation
+                const maxRadius = numClusters === 1 ? 25 : 15; 
+                const r = maxRadius * Math.cbrt(Math.random());
+                const theta = Math.random() * 2 * Math.PI;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                const x = cluster.x + r * Math.sin(phi) * Math.cos(theta);
+                const y = cluster.y + r * Math.sin(phi) * Math.sin(theta);
+                const z = cluster.z + r * Math.cos(phi);
+
+                const mesh = new THREE.Mesh(nodeGeometry, nodeMaterialTemplate.clone());
+                mesh.position.set(x, y, z);
+                networkGroup.add(mesh);
+
+                nodes.push({
+                    id: i,
+                    position: new THREE.Vector3(x, y, z),
+                    mesh: mesh,
+                    connections: [], 
+                    triggerIntensity: 0.0 
+                });
+            }
+
+            // 3. Sort nodes by Y position to assign frequencies
+            const sortedNodes = [...nodes].sort((a, b) => a.position.y - b.position.y);
+            sortedNodes.forEach((node, index) => {
+                const scaleIndex = Math.floor((index / numNodes) * scaleFrequencies.length);
+                node.frequency = scaleFrequencies[Math.min(scaleIndex, scaleFrequencies.length - 1)];
+            });
+
+            // 4. Connect Nodes
+            const edgePoints = [];
+            for (let i = 0; i < nodes.length; i++) {
+                let nodeA = nodes[i];
+                
+                let distances = [];
+                for (let j = 0; j < nodes.length; j++) {
+                    if (i === j) continue;
+                    distances.push({
+                        node: nodes[j],
+                        dist: nodeA.position.distanceTo(nodes[j].position)
+                    });
+                }
+
+                distances.sort((a, b) => a.dist - b.dist);
+                
+                let connectedCount = 0;
+                for (let j = 0; j < distances.length; j++) {
+                    if (connectedCount >= maxConnections) break;
+                    
+                    let nodeB = distances[j].node;
+                    
+                    if (nodeB.connections.length >= maxConnections) continue;
+                    
+                    if (!nodeA.connections.includes(nodeB)) {
+                        nodeA.connections.push(nodeB);
+                        nodeB.connections.push(nodeA); 
+                        
+                        edgePoints.push(nodeA.position);
+                        edgePoints.push(nodeB.position);
+                        connectedCount++;
+                    }
+                }
+            }
+
+            // Ensure no orphans (fallback)
+            nodes.forEach(node => {
+                if (node.connections.length === 0 && nodes.length > 1) {
+                    let randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+                    while(randomNode === node) randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+                    node.connections.push(randomNode);
+                    randomNode.connections.push(node);
+                    edgePoints.push(node.position);
+                    edgePoints.push(randomNode.position);
+                }
+            });
+
+            // Create Edge Geometry
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(edgePoints);
+            edgesLine = new THREE.LineSegments(lineGeo, edgeMaterial);
+            networkGroup.add(edgesLine);
+        }
+
+        function createWalker() {
+            if (nodes.length === 0) return;
+
+            // Pick a random starting node
+            const startNode = nodes[Math.floor(Math.random() * nodes.length)];
+            const targetNode = startNode.connections.length > 0 
+                 ? startNode.connections[Math.floor(Math.random() * startNode.connections.length)]
+                 : startNode;
+            
+            const mesh = new THREE.Mesh(walkerGeometry, walkerMaterial);
+            mesh.position.copy(startNode.position);
+            networkGroup.add(mesh);
+
+            // Outer point light for the walker to illuminate nearby edges implicitly via additive blending simulation
+            // WebGL standard lights are heavy, so we fake it with visual glow.
+            
+            walkers.push({
+                mesh: mesh,
+                currentNode: startNode,
+                targetNode: targetNode,
+                progress: 0.0,
+                // Give each walker a slightly different speed multiplier
+                speedMod: 0.8 + Math.random() * 0.4 
+            });
+        }
+
+        function removeWalker() {
+            if (walkers.length > 0) {
+                const w = walkers.pop();
+                networkGroup.remove(w.mesh);
+                w.mesh.geometry.dispose();
+            }
+        }
+
+        function triggerNode(node) {
+            // Audio
+            if (audioCtx && audioCtx.state === 'running') {
+                playNodeAudio(node.frequency);
+            }
+            // Visual pulse
+            node.triggerIntensity = 1.0;
+        }
+
+        // --- ANIMATION LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            // Handle walker counts
+            if (nodes.length > 0) {
+                while (walkers.length < targetWalkerCount) createWalker();
+            }
+            while (walkers.length > targetWalkerCount) removeWalker();
+
+            // Update Walkers
+            walkers.forEach(walker => {
+                if (!walker.currentNode || !walker.targetNode) return; // safety
+
+                // Distance between nodes dictates how long it takes
+                const dist = walker.currentNode.position.distanceTo(walker.targetNode.position);
+                
+                // Actual speed = baseSpeed * individualModifier / distance
+                // So they move at a constant world speed, not constant time per edge
+                const frameSpeed = (walkerBaseSpeed * walker.speedMod) / Math.max(dist, 0.1); 
+                
+                walker.progress += frameSpeed * delta;
+
+                if (walker.progress >= 1.0) {
+                    // Arrived at target
+                    walker.progress = 0.0;
+                    walker.currentNode = walker.targetNode;
+                    
+                    triggerNode(walker.currentNode);
+
+                    // Pick next node
+                    const conns = walker.currentNode.connections;
+                    walker.targetNode = conns[Math.floor(Math.random() * conns.length)];
+                    
+                    // Snap position to exact node
+                    walker.mesh.position.copy(walker.currentNode.position);
+                } else {
+                    // Lerp position
+                    walker.mesh.position.lerpVectors(
+                        walker.currentNode.position, 
+                        walker.targetNode.position, 
+                        // Smoothstep for natural acceleration/deceleration
+                        walker.progress * walker.progress * (3 - 2 * walker.progress)
+                    );
+                }
+            });
+
+            // Update Nodes (Decay pulses)
+            nodes.forEach(node => {
+                if (node.triggerIntensity > 0) {
+                    node.triggerIntensity -= delta * 0.8; // Decay rate
+                    if (node.triggerIntensity < 0) node.triggerIntensity = 0;
+                    
+                    // Visual interpolation: Color and Scale
+                    node.mesh.material.color.lerpColors(nodeBaseColor, nodeActiveColor, node.triggerIntensity);
+                    const s = 1.0 + node.triggerIntensity * 1.5; // Grow up to 2.5x
+                    node.mesh.scale.set(s, s, s);
+                }
+            });
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- EVENT LISTENERS & INITIALIZATION ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // UI Controls
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('start-overlay').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('start-overlay').style.display = 'none';
+            }, 1000);
+            
+            document.getElementById('controls').style.display = 'block';
+            document.getElementById('info').style.display = 'block';
+
+            initAudio();
+            
+            // Resume context if needed (browser policy)
+            if(audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        });
+
+        document.getElementById('speed-slider').addEventListener('input', (e) => {
+            walkerBaseSpeed = parseFloat(e.target.value);
+            
+            let label = "Medium";
+            if (walkerBaseSpeed < 1.0) label = "Glacial";
+            else if (walkerBaseSpeed < 2.0) label = "Slow";
+            else if (walkerBaseSpeed < 3.5) label = "Moderate";
+            else label = "Fast";
+            
+            document.getElementById('speed-val').innerText = label;
+        });
+
+        document.getElementById('count-slider').addEventListener('input', (e) => {
+            targetWalkerCount = parseInt(e.target.value);
+            document.getElementById('count-val').innerText = targetWalkerCount;
+        });
+
+        // Network Architecture Sliders (with debounce to prevent lag)
+        let rebuildTimeout;
+        const triggerRebuild = () => {
+            clearTimeout(rebuildTimeout);
+            rebuildTimeout = setTimeout(() => {
+                buildNetwork();
+            }, 100); 
+        };
+
+        document.getElementById('size-slider').addEventListener('input', (e) => {
+            numNodes = parseInt(e.target.value);
+            document.getElementById('size-val').innerText = numNodes;
+            triggerRebuild();
+        });
+
+        document.getElementById('cluster-slider').addEventListener('input', (e) => {
+            numClusters = parseInt(e.target.value);
+            document.getElementById('cluster-val').innerText = numClusters;
+            triggerRebuild();
+        });
+
+        document.getElementById('interconnect-slider').addEventListener('input', (e) => {
+            maxConnections = parseInt(e.target.value);
+            document.getElementById('interconnect-val').innerText = maxConnections;
+            triggerRebuild();
+        });
+
+        // Boot system
+        buildNetwork();
+        animate();
+
+    </script>
+</body>
+</html>
