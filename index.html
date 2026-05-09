@@ -9,19 +9,18 @@
     <style>
         /* --- Futuristic Reset & Variables --- */
         :root {
-            --bg-dark: #090a0f;
-            --neon-cyan: #00f3ff;
-            --neon-pink: #ff007f;
-            --glass-bg: rgba(10, 12, 20, 0.7);
-            --glass-border: rgba(0, 243, 255, 0.2);
-            --glass-blur: blur(16px);
+            --bg-dark: #020304; /* Much darker background */
+            --neon-cyan: #00e5ff;
+            --neon-pink: #ff0055;
+            --neon-yellow: #e5d900;
+            --cyber-gray: #0a0b10; /* Deep dark gray for window bodies */
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
+            font-family: 'Courier New', Courier, monospace;
             user-select: none;
         }
 
@@ -30,6 +29,7 @@
             overflow: hidden;
             background-color: var(--bg-dark);
             color: #e0eaff;
+            color-scheme: dark; /* Helps scrollbars and native elements go dark */
         }
 
         /* Animated Grid Background */
@@ -81,15 +81,16 @@
         .icon-img {
             width: 48px;
             height: 48px;
-            border-radius: 12px;
+            border-radius: 0;
             background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(255,0,127,0.1));
-            border: 1px solid var(--neon-cyan);
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+            border: 2px solid var(--neon-cyan);
+            box-shadow: 4px 4px 0px rgba(0, 243, 255, 0.2);
             margin-bottom: 8px;
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: all 0.3s;
+            transition: all 0.2s;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
         }
 
         .icon-img::before {
@@ -102,8 +103,9 @@
         }
 
         .desktop-icon:hover .icon-img {
-            box-shadow: 0 0 25px var(--neon-cyan);
-            background: linear-gradient(135deg, rgba(0,243,255,0.3), rgba(255,0,127,0.3));
+            box-shadow: 6px 6px 0px var(--neon-cyan);
+            background: linear-gradient(135deg, rgba(0,243,255,0.2), rgba(255,0,127,0.2));
+            border-color: var(--neon-pink);
         }
 
         .icon-text {
@@ -122,42 +124,18 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            height: 55px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            border-radius: 28px;
+            height: 50px;
+            background: var(--cyber-gray);
+            border: 1px solid var(--neon-cyan);
+            border-bottom: 2px solid var(--neon-pink);
             display: flex;
             align-items: center;
-            padding: 0 15px;
+            padding: 0 20px;
             gap: 12px;
             z-index: 9999;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,243,255,0.05);
-        }
-
-        #start-btn {
-            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
-            color: #000;
-            font-weight: 800;
-            padding: 8px 18px;
-            border-radius: 20px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
-            transition: filter 0.2s, transform 0.1s;
-        }
-
-        #start-btn:active {
-            transform: scale(0.95);
-        }
-
-        #start-btn:hover {
-            filter: brightness(1.2);
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.9);
+            /* Sci-fi top bevels */
+            clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 0 100%, 0 15px);
         }
 
         #taskbar-windows {
@@ -172,76 +150,35 @@
         #taskbar-windows::-webkit-scrollbar { display: none; }
 
         .taskbar-item {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 8px 16px;
-            border-radius: 15px;
+            background: transparent;
+            border: 1px solid var(--neon-cyan);
+            padding: 6px 14px;
             font-size: 13px;
+            font-weight: bold;
             cursor: pointer;
             transition: all 0.2s;
             max-width: 140px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            color: #aaa;
+            color: var(--neon-cyan);
+            text-transform: uppercase;
+            clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
         }
 
         .taskbar-item.active {
-            background: rgba(0, 243, 255, 0.15);
-            border-color: var(--neon-cyan);
-            color: #fff;
-            box-shadow: 0 0 12px rgba(0,243,255,0.2);
+            background: rgba(255, 0, 85, 0.2);
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
         }
 
         #clock {
             font-family: 'Courier New', Courier, monospace;
             font-weight: bold;
             font-size: 14px;
-            color: var(--neon-cyan);
+            color: var(--neon-yellow);
             padding-left: 12px;
-            border-left: 1px solid rgba(255,255,255,0.2);
-        }
-
-        /* --- Glassmorphism Start Menu --- */
-        #start-menu {
-            position: absolute;
-            bottom: 90px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 260px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            display: none;
-            flex-direction: column;
-            padding: 12px;
-            z-index: 10000;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.8), inset 0 0 15px rgba(255,0,127,0.1);
-        }
-
-        .start-item {
-            padding: 12px 16px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: 0.2s;
-            color: #ddd;
-            margin-bottom: 4px;
-        }
-
-        .start-item:hover {
-            background: rgba(0, 243, 255, 0.2);
-            color: #fff;
-            padding-left: 22px;
-        }
-
-        hr {
-            border: none;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            margin: 8px 0;
+            border-left: 2px dashed rgba(255,255,255,0.2);
         }
 
         /* --- Cyberpunk Windows --- */
@@ -251,80 +188,94 @@
             height: 400px;
             min-width: 300px;
             min-height: 200px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            border-radius: 14px;
+            background: var(--cyber-gray);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 0;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.05);
-            transition: box-shadow 0.3s, border-color 0.3s;
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.9);
+            transition: border-color 0.2s;
+            /* Complex multi-angled sci-fi cut */
+            clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 25px), calc(100% - 25px) 100%, 20px 100%, 0 calc(100% - 20px), 0 20px);
         }
 
         .window:focus-within, .window:active {
-            box-shadow: 0 20px 40px rgba(0,0,0,0.7), 0 0 20px rgba(0,243,255,0.2);
-            border-color: var(--neon-cyan);
+            border-color: var(--neon-pink);
         }
 
         .title-bar {
-            background: rgba(0,0,0,0.4);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding: 10px 15px;
+            background: #0d0f16;
+            border-bottom: 1px solid var(--neon-cyan);
+            padding: 8px 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            color: var(--neon-cyan);
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
 
         .title-bar.inactive {
-            opacity: 0.6;
+            background: #050608;
+            color: #555;
+            border-bottom: 1px solid #333;
         }
 
         .title-controls {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
 
         .ctrl-btn {
-            width: 26px;
-            height: 26px;
-            border-radius: 50%;
-            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 0;
+            border: 1px solid var(--neon-cyan);
             display: flex;
             justify-content: center;
             align-items: center;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
             text-decoration: none;
-            color: #fff;
-            background: rgba(255,255,255,0.1);
-            transition: 0.2s;
+            color: var(--neon-cyan);
+            background: transparent;
+            transition: 0.1s;
+        }
+
+        .title-bar.inactive .ctrl-btn {
+            border-color: #444;
+            color: #444;
         }
 
         .ctrl-btn:hover {
-            background: rgba(255,255,255,0.2);
+            background: var(--neon-cyan);
+            color: #000;
         }
 
-        .popout-btn:hover {
-            background: rgba(0, 243, 255, 0.4);
-            box-shadow: 0 0 10px var(--neon-cyan);
+        .close-btn {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+        
+        .title-bar.inactive .close-btn {
+            border-color: #444;
+            color: #444;
         }
 
         .close-btn:hover {
-            background: rgba(255, 0, 127, 0.6);
-            box-shadow: 0 0 10px var(--neon-pink);
+            background: var(--neon-pink);
+            color: #000;
+            border-color: var(--neon-pink);
         }
 
         .window-content {
             flex-grow: 1;
             position: relative;
-            background: #fff; /* Solid white so simple HTML files are readable */
+            background: var(--cyber-gray); /* Darken content area */
         }
 
         iframe {
@@ -332,7 +283,8 @@
             height: 100%;
             border: none;
             display: block;
-            background: #fff;
+            background: transparent; /* Makes standard HTML flow with the dark theme */
+            color-scheme: dark; /* Suggests to the browser to render defaults in dark mode */
         }
 
         .window.is-dragging iframe, 
@@ -349,15 +301,18 @@
             height: 25px;
             cursor: se-resize;
             z-index: 10;
-            background: linear-gradient(135deg, transparent 50%, rgba(0,243,255,0.4) 50%);
-            border-bottom-right-radius: 12px;
-            opacity: 0.5;
+            background: var(--neon-cyan);
+            clip-path: polygon(100% 0, 100% 100%, 0 100%);
             transition: 0.2s;
+        }
+
+        .window:focus-within .resize-handle, 
+        .window:active .resize-handle {
+            background: var(--neon-pink);
         }
 
         .resize-handle:hover {
             opacity: 1;
-            background: linear-gradient(135deg, transparent 50%, var(--neon-cyan) 50%);
         }
     </style>
 </head>
@@ -385,19 +340,8 @@
         {% endfor %}
     </div>
 
-    <!-- Start Menu -->
-    <div id="start-menu">
-        <div class="start-item" onclick="alert('System operating normally.')">System Status</div>
-        <div class="start-item" onclick="alert('No archives detected.')">Data Archives</div>
-        <hr>
-        <div class="start-item" onclick="toggleStartMenu()" style="color: var(--neon-pink);">Disconnect...</div>
-    </div>
-
     <!-- Taskbar / Dock -->
     <div id="taskbar">
-        <div id="start-btn" onclick="toggleStartMenu()">
-            SYS
-        </div>
         <div id="taskbar-windows"></div>
         <div id="clock">00:00 AM</div>
     </div>
@@ -419,20 +363,6 @@
         }
         setInterval(updateClock, 1000);
         updateClock();
-
-        // --- Start Menu ---
-        function toggleStartMenu() {
-            const menu = document.getElementById('start-menu');
-            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
-        }
-
-        document.addEventListener('click', function(event) {
-            const startBtn = document.getElementById('start-btn');
-            const startMenu = document.getElementById('start-menu');
-            if (!startBtn.contains(event.target) && !startMenu.contains(event.target)) {
-                startMenu.style.display = 'none';
-            }
-        });
 
         // --- Window Manager ---
         function openWindow(url, title) {
