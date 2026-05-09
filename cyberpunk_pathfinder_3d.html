@@ -186,6 +186,13 @@
     };
     const SEARCH_TIMING = { slowStepMultiplier: 0.028, slowStepBaseSeconds: 0.012, autoRestartDelayMs: 1400 };
     const SPEED_MODE = { slowFastThreshold: 50, fastModeDisplayOffset: 49 };
+    const RENDER_TUNING = {
+      maxPixelRatio: 2,
+      nodeSphereRadius: 0.8,
+      nodeSphereWidthSegments: 10,
+      nodeSphereHeightSegments: 10,
+      edgeDefaultOpacity: 0.35
+    };
 
     const canvas = document.getElementById('three-canvas');
     const root = document.getElementById('canvas-root');
@@ -217,7 +224,7 @@
       camera.position.set(72, 60, 72);
 
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER_TUNING.maxPixelRatio));
       renderer.toneMapping = THREE.ReinhardToneMapping;
 
       controls = new OrbitControls(camera, renderer.domElement);
@@ -308,7 +315,11 @@
       graph.adjList.clear();
       graph.edgeMap.clear();
 
-      const sphere = new THREE.SphereGeometry(0.8, 10, 10);
+      const sphere = new THREE.SphereGeometry(
+        RENDER_TUNING.nodeSphereRadius,
+        RENDER_TUNING.nodeSphereWidthSegments,
+        RENDER_TUNING.nodeSphereHeightSegments
+      );
       for (let i = 0; i < n; i++) {
         const cluster = i % c;
         const center = centers[cluster];
@@ -534,7 +545,7 @@
           edge.line.material.opacity = 0.45;
         } else {
           edge.line.material.color.setHex(COLORS.edgeDefault);
-          edge.line.material.opacity = 0.35;
+          edge.line.material.opacity = RENDER_TUNING.edgeDefaultOpacity;
         }
       }
 
