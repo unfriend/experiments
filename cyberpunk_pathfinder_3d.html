@@ -137,14 +137,14 @@
       }
       sinkDown(i) {
         while (true) {
-          let s = i;
-          const l = i * 2 + 1;
-          const r = i * 2 + 2;
-          if (l < this.heap.length && this.heap[l].priority < this.heap[s].priority) s = l;
-          if (r < this.heap.length && this.heap[r].priority < this.heap[s].priority) s = r;
-          if (s === i) break;
-          [this.heap[s], this.heap[i]] = [this.heap[i], this.heap[s]];
-          i = s;
+          let smallest = i;
+          const leftChild = i * 2 + 1;
+          const rightChild = i * 2 + 2;
+          if (leftChild < this.heap.length && this.heap[leftChild].priority < this.heap[smallest].priority) smallest = leftChild;
+          if (rightChild < this.heap.length && this.heap[rightChild].priority < this.heap[smallest].priority) smallest = rightChild;
+          if (smallest === i) break;
+          [this.heap[smallest], this.heap[i]] = [this.heap[i], this.heap[smallest]];
+          i = smallest;
         }
       }
       isEmpty() { return this.heap.length === 0; }
@@ -197,6 +197,7 @@
     let nodesGroup, edgesGroup;
     let searchAccumulator = 0;
     let loopTimer = null;
+    let visualsDirty = true;
 
     init();
     animate();
@@ -341,7 +342,7 @@
       ensureConnected();
       pickRandomEndpoints();
       resetSearch(false);
-      updateVisuals();
+      markVisualsDirty();
       updateUI();
     }
 
@@ -364,9 +365,9 @@
     function ensureConnected() {
       const seen = new Set([0]);
       const q = [0];
-      let readIndex = 0;
-      while (readIndex < q.length) {
-        const curr = q[readIndex++];
+      let queueIndex = 0;
+      while (queueIndex < q.length) {
+        const curr = q[queueIndex++];
         for (const n of graph.adjList.get(curr)) if (!seen.has(n.target)) { seen.add(n.target); q.push(n.target); }
       }
       if (seen.size === graph.nodes.length) return;
@@ -429,7 +430,7 @@
       state.stats.pathLength = 0;
       state.status = 'idle';
       if (redraw) {
-        updateVisuals();
+        markVisualsDirty();
         updateUI();
       }
     }
@@ -451,6 +452,7 @@
         state.stats.pathLength = 0;
       }
       state.status = 'running';
+      markVisualsDirty();
       updateUI();
     }
 
@@ -464,6 +466,7 @@
         state.status = 'no_path';
         searchData.currentCheckingNode = null;
         startLoopTimer();
+        markVisualsDirty();
         updateUI();
         return;
       }
@@ -476,11 +479,12 @@
         state.status = 'found';
         searchData.currentCheckingNode = null;
         startLoopTimer();
+        markVisualsDirty();
         updateUI();
         return;
       }
 
-      if (searchData.visited.has(current)) return;
+      if (searchData.visited.has(current)) { markVisualsDirty(); return; }
       searchData.visited.add(current);
 
       const neighbors = graph.adjList.get(current) || [];
@@ -495,6 +499,7 @@
         }
       }
       state.stats.visited = searchData.visited.size;
+      markVisualsDirty();
       updateUI();
     }
 
@@ -593,7 +598,7 @@
       if (e.shiftKey) searchData.startNode = picked;
       else searchData.targetNode = picked;
       resetSearch(false);
-      updateVisuals();
+      markVisualsDirty();
       updateUI();
     }
 
@@ -617,9 +622,13 @@
         }
       }
 
-      updateVisuals();
+      if (visualsDirty) {
+        updateVisuals();
+        visualsDirty = false;
+      }
       renderer.render(scene, camera);
     }
   </script>
 </body>
 </html>
+    function markVisualsDirty() { visualsDirty = true; }
