@@ -211,6 +211,7 @@
         const FILTER_FREQUENCY_MULTIPLIER = 2.5;
         const WOW_FLUTTER_MIN_FREQ_HZ = 0.1;
         const WOW_FLUTTER_MAX_FREQ_HZ = 0.5;
+        const WOW_FLUTTER_FREQ_RANGE = WOW_FLUTTER_MAX_FREQ_HZ - WOW_FLUTTER_MIN_FREQ_HZ;
         const COMPRESSOR_THRESHOLD_DB = -20;
         const COMPRESSOR_KNEE_DB = 10;
         const COMPRESSOR_RATIO = 4;
@@ -260,6 +261,7 @@
             delay.connect(delayFilter);
             delayFilter.connect(delayFeedback);
             delayFeedback.connect(delay);
+            // Feed only darkened delay repeats into reverb to keep the space smooth and avoid brittle buildup.
             delayFilter.connect(convolver);
             
             delay.connect(wetGain);
@@ -323,7 +325,7 @@
             const wowLfo = audioCtx.createOscillator();
             const wowLfoGain = audioCtx.createGain();
             wowLfo.type = 'sine';
-            wowLfo.frequency.setValueAtTime(WOW_FLUTTER_MIN_FREQ_HZ + Math.random() * (WOW_FLUTTER_MAX_FREQ_HZ - WOW_FLUTTER_MIN_FREQ_HZ), t);
+            wowLfo.frequency.setValueAtTime(WOW_FLUTTER_MIN_FREQ_HZ + Math.random() * WOW_FLUTTER_FREQ_RANGE, t);
             wowLfoGain.gain.setValueAtTime(frequency * WOW_FLUTTER_DEPTH, t);
             wowLfo.connect(wowLfoGain);
             wowLfoGain.connect(osc1.frequency);
