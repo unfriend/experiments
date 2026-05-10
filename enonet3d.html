@@ -188,6 +188,7 @@
         let audioCtx;
         let masterGain;
         let convolver;
+        let compressor;
         let delay;
         let delayFeedback;
         let dryGain, wetGain;
@@ -200,13 +201,38 @@
             523.25, 587.33, 659.25, 783.99, 880.00, // C5 - A5
             1046.50, 1174.66, 1318.51, 1567.98, 1760.00 // C6 - A6
         ];
+        const VOICE_ATTACK_GAIN = 0.06;
+        const VOICE_SUSTAIN_GAIN = 0.04;
+        const WOW_FLUTTER_DEPTH = 0.004;
+        const DELAY_TIME_SECONDS = 2.5;
+        const DELAY_FEEDBACK_GAIN = 0.4;
+        const DELAY_FILTER_CUTOFF_HZ = 1200;
+        const MAX_FILTER_CUTOFF_HZ = 2200;
+        const FILTER_FREQUENCY_MULTIPLIER = 2.5;
+        const WOW_FLUTTER_MIN_FREQ_HZ = 0.1;
+        const WOW_FLUTTER_MAX_FREQ_HZ = 0.5;
+        const WOW_FLUTTER_FREQ_RANGE = WOW_FLUTTER_MAX_FREQ_HZ - WOW_FLUTTER_MIN_FREQ_HZ;
+        const COMPRESSOR_THRESHOLD_DB = -20;
+        const COMPRESSOR_KNEE_DB = 10;
+        const COMPRESSOR_RATIO = 4;
+        const COMPRESSOR_ATTACK_SECONDS = 0.03;
+        const COMPRESSOR_RELEASE_SECONDS = 1.0;
 
         function initAudio() {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             
             masterGain = audioCtx.createGain();
-            masterGain.gain.value = 0.6; // Master volume
-            masterGain.connect(audioCtx.destination);
+            masterGain.gain.value = 0.75;
+
+            compressor = audioCtx.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(COMPRESSOR_THRESHOLD_DB, audioCtx.currentTime);
+            compressor.knee.setValueAtTime(COMPRESSOR_KNEE_DB, audioCtx.currentTime);
+            compressor.ratio.setValueAtTime(COMPRESSOR_RATIO, audioCtx.currentTime);
+            compressor.attack.setValueAtTime(COMPRESSOR_ATTACK_SECONDS, audioCtx.currentTime);
+            compressor.release.setValueAtTime(COMPRESSOR_RELEASE_SECONDS, audioCtx.currentTime);
+
+            masterGain.connect(compressor);
+            compressor.connect(audioCtx.destination);
 
             dryGain = audioCtx.createGain();
             dryGain.gain.value = 0.7;
@@ -223,21 +249,22 @@
 
             // Create sweeping Ping-Pong/Feedback Delay
             delay = audioCtx.createDelay(5.0);
-            delay.delayTime.value = 0.75; // 750ms
+            delay.delayTime.value = DELAY_TIME_SECONDS;
             delayFeedback = audioCtx.createGain();
-            delayFeedback.gain.value = 0.5; // Feedback amount
+            delayFeedback.gain.value = DELAY_FEEDBACK_GAIN;
             
             // Filter in the delay feedback loop to darken repeats (tape style)
             const delayFilter = audioCtx.createBiquadFilter();
             delayFilter.type = 'lowpass';
-            delayFilter.frequency.value = 1500;
+            delayFilter.frequency.value = DELAY_FILTER_CUTOFF_HZ;
 
             delay.connect(delayFilter);
             delayFilter.connect(delayFeedback);
             delayFeedback.connect(delay);
+            // Feed only darkened delay repeats into reverb to keep the space smooth and avoid brittle buildup.
+            delayFilter.connect(convolver);
             
             delay.connect(wetGain);
-            delay.connect(convolver); // Feed delay into reverb for huge space
         }
 
         // Generate synthetic impulse response for lush reverb
@@ -264,21 +291,25 @@
             const t = audioCtx.currentTime;
             
             // Envelope timing (Eno style: slow attack, very long release)
-            const attackTime = 1.5 + Math.random();
+            const attackTime = 1.0 + Math.random() * 0.8;
             const decayTime = 1.0;
             const sustainLevel = 0.6;
-            const releaseTime = 4.0 + Math.random() * 3.0;
+            const releaseTime = 5.0 + Math.random() * 3.0;
 
             // Voice Gain (Envelope)
             const vca = audioCtx.createGain();
             vca.gain.setValueAtTime(0, t);
-            vca.gain.linearRampToValueAtTime(1.0, t + attackTime);
-            vca.gain.setTargetAtTime(sustainLevel, t + attackTime, decayTime);
+            vca.gain.linearRampToValueAtTime(VOICE_ATTACK_GAIN, t + attackTime);
+            vca.gain.setTargetAtTime(VOICE_SUSTAIN_GAIN * sustainLevel, t + attackTime, decayTime);
+
+            const panner = audioCtx.createStereoPanner();
+            panner.pan.setValueAtTime(Math.random() * 2 - 1, t);
             
             // Route to mix
-            vca.connect(dryGain);
-            vca.connect(delay);
-            vca.connect(convolver);
+            vca.connect(panner);
+            panner.connect(dryGain);
+            panner.connect(delay);
+            panner.connect(convolver);
 
             // Oscillator 1 (Sine, fundamental)
             const osc1 = audioCtx.createOscillator();
@@ -289,7 +320,17 @@
             const osc2 = audioCtx.createOscillator();
             osc2.type = 'triangle';
             osc2.frequency.setValueAtTime(frequency, t);
-            osc2.detune.setValueAtTime(Math.random() * 10 - 5, t); // +/- 5 cents
+            osc2.detune.setValueAtTime(Math.random() * 8 - 4, t); // +/- 4 cents
+
+            const wowLfo = audioCtx.createOscillator();
+            const wowLfoGain = audioCtx.createGain();
+            wowLfo.type = 'sine';
+            wowLfo.frequency.setValueAtTime(WOW_FLUTTER_MIN_FREQ_HZ + Math.random() * WOW_FLUTTER_FREQ_RANGE, t);
+            wowLfoGain.gain.setValueAtTime(frequency * WOW_FLUTTER_DEPTH, t);
+            wowLfo.connect(wowLfoGain);
+            wowLfoGain.connect(osc1.frequency);
+            wowLfoGain.connect(osc2.frequency);
+            wowLfo.start(t);
             
             // Mix oscillators together
             const oscMix = audioCtx.createGain();
@@ -300,8 +341,8 @@
             // Filter to make triangle wave mellower
             const vcf = audioCtx.createBiquadFilter();
             vcf.type = 'lowpass';
-            vcf.frequency.setValueAtTime(frequency * 3, t); // Filter tracks pitch
-            vcf.Q.value = 0.5;
+            vcf.frequency.setValueAtTime(Math.min(MAX_FILTER_CUTOFF_HZ, frequency * FILTER_FREQUENCY_MULTIPLIER), t);
+            vcf.Q.value = 0.4;
             
             oscMix.connect(vcf);
             vcf.connect(vca);
@@ -318,12 +359,16 @@
             const totalDuration = t + duration + releaseTime + 1.0;
             osc1.stop(totalDuration);
             osc2.stop(totalDuration);
+            wowLfo.stop(totalDuration);
             
             setTimeout(() => {
                 osc1.disconnect();
                 osc2.disconnect();
+                wowLfo.disconnect();
+                wowLfoGain.disconnect();
                 vcf.disconnect();
                 vca.disconnect();
+                panner.disconnect();
             }, (duration + releaseTime + 2.0) * 1000);
         }
 
