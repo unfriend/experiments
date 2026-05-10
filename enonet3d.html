@@ -208,6 +208,14 @@
         const DELAY_FEEDBACK_GAIN = 0.4;
         const DELAY_FILTER_CUTOFF_HZ = 1200;
         const MAX_FILTER_CUTOFF_HZ = 2200;
+        const FILTER_FREQUENCY_MULTIPLIER = 2.5;
+        const WOW_FLUTTER_MIN_FREQ_HZ = 0.1;
+        const WOW_FLUTTER_MAX_FREQ_HZ = 0.5;
+        const COMPRESSOR_THRESHOLD_DB = -20;
+        const COMPRESSOR_KNEE_DB = 10;
+        const COMPRESSOR_RATIO = 4;
+        const COMPRESSOR_ATTACK_SECONDS = 0.03;
+        const COMPRESSOR_RELEASE_SECONDS = 1.0;
 
         function initAudio() {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -216,11 +224,11 @@
             masterGain.gain.value = 0.75;
 
             compressor = audioCtx.createDynamicsCompressor();
-            compressor.threshold.setValueAtTime(-20, audioCtx.currentTime);
-            compressor.knee.setValueAtTime(10, audioCtx.currentTime);
-            compressor.ratio.setValueAtTime(4, audioCtx.currentTime);
-            compressor.attack.setValueAtTime(0.03, audioCtx.currentTime);
-            compressor.release.setValueAtTime(1.0, audioCtx.currentTime);
+            compressor.threshold.setValueAtTime(COMPRESSOR_THRESHOLD_DB, audioCtx.currentTime);
+            compressor.knee.setValueAtTime(COMPRESSOR_KNEE_DB, audioCtx.currentTime);
+            compressor.ratio.setValueAtTime(COMPRESSOR_RATIO, audioCtx.currentTime);
+            compressor.attack.setValueAtTime(COMPRESSOR_ATTACK_SECONDS, audioCtx.currentTime);
+            compressor.release.setValueAtTime(COMPRESSOR_RELEASE_SECONDS, audioCtx.currentTime);
 
             masterGain.connect(compressor);
             compressor.connect(audioCtx.destination);
@@ -315,7 +323,7 @@
             const wowLfo = audioCtx.createOscillator();
             const wowLfoGain = audioCtx.createGain();
             wowLfo.type = 'sine';
-            wowLfo.frequency.setValueAtTime(0.1 + Math.random() * 0.4, t);
+            wowLfo.frequency.setValueAtTime(WOW_FLUTTER_MIN_FREQ_HZ + Math.random() * (WOW_FLUTTER_MAX_FREQ_HZ - WOW_FLUTTER_MIN_FREQ_HZ), t);
             wowLfoGain.gain.setValueAtTime(frequency * WOW_FLUTTER_DEPTH, t);
             wowLfo.connect(wowLfoGain);
             wowLfoGain.connect(osc1.frequency);
@@ -331,7 +339,7 @@
             // Filter to make triangle wave mellower
             const vcf = audioCtx.createBiquadFilter();
             vcf.type = 'lowpass';
-            vcf.frequency.setValueAtTime(Math.min(MAX_FILTER_CUTOFF_HZ, frequency * 2.5), t);
+            vcf.frequency.setValueAtTime(Math.min(MAX_FILTER_CUTOFF_HZ, frequency * FILTER_FREQUENCY_MULTIPLIER), t);
             vcf.Q.value = 0.4;
             
             oscMix.connect(vcf);
