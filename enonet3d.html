@@ -207,6 +207,7 @@
         const DELAY_TIME_SECONDS = 2.5;
         const DELAY_FEEDBACK_GAIN = 0.4;
         const DELAY_FILTER_CUTOFF_HZ = 1200;
+        const MAX_FILTER_CUTOFF_HZ = 2200;
 
         function initAudio() {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -254,7 +255,6 @@
             delayFilter.connect(convolver);
             
             delay.connect(wetGain);
-            delay.connect(convolver); // Feed delay into reverb for huge space
         }
 
         // Generate synthetic impulse response for lush reverb
@@ -331,7 +331,7 @@
             // Filter to make triangle wave mellower
             const vcf = audioCtx.createBiquadFilter();
             vcf.type = 'lowpass';
-            vcf.frequency.setValueAtTime(Math.min(2200, frequency * 2.5), t);
+            vcf.frequency.setValueAtTime(Math.min(MAX_FILTER_CUTOFF_HZ, frequency * 2.5), t);
             vcf.Q.value = 0.4;
             
             oscMix.connect(vcf);
