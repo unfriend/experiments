@@ -201,6 +201,9 @@
             523.25, 587.33, 659.25, 783.99, 880.00, // C5 - A5
             1046.50, 1174.66, 1318.51, 1567.98, 1760.00 // C6 - A6
         ];
+        const VOICE_ATTACK_GAIN = 0.06;
+        const VOICE_SUSTAIN_GAIN = 0.04;
+        const WOW_FLUTTER_DEPTH = 0.004;
 
         function initAudio() {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -283,8 +286,8 @@
             // Voice Gain (Envelope)
             const vca = audioCtx.createGain();
             vca.gain.setValueAtTime(0, t);
-            vca.gain.linearRampToValueAtTime(0.06, t + attackTime);
-            vca.gain.setTargetAtTime(0.04 * sustainLevel, t + attackTime, decayTime);
+            vca.gain.linearRampToValueAtTime(VOICE_ATTACK_GAIN, t + attackTime);
+            vca.gain.setTargetAtTime(VOICE_SUSTAIN_GAIN * sustainLevel, t + attackTime, decayTime);
 
             const panner = audioCtx.createStereoPanner();
             panner.pan.setValueAtTime(Math.random() * 2 - 1, t);
@@ -310,7 +313,7 @@
             const wowLfoGain = audioCtx.createGain();
             wowLfo.type = 'sine';
             wowLfo.frequency.setValueAtTime(0.1 + Math.random() * 0.4, t);
-            wowLfoGain.gain.setValueAtTime(frequency * 0.004, t);
+            wowLfoGain.gain.setValueAtTime(frequency * WOW_FLUTTER_DEPTH, t);
             wowLfo.connect(wowLfoGain);
             wowLfoGain.connect(osc1.frequency);
             wowLfoGain.connect(osc2.frequency);
