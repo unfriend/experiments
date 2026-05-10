@@ -204,6 +204,9 @@
         const VOICE_ATTACK_GAIN = 0.06;
         const VOICE_SUSTAIN_GAIN = 0.04;
         const WOW_FLUTTER_DEPTH = 0.004;
+        const DELAY_TIME_SECONDS = 2.5;
+        const DELAY_FEEDBACK_GAIN = 0.4;
+        const DELAY_FILTER_CUTOFF_HZ = 1200;
 
         function initAudio() {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -215,7 +218,7 @@
             compressor.threshold.setValueAtTime(-20, audioCtx.currentTime);
             compressor.knee.setValueAtTime(10, audioCtx.currentTime);
             compressor.ratio.setValueAtTime(4, audioCtx.currentTime);
-            compressor.attack.setValueAtTime(0.5, audioCtx.currentTime);
+            compressor.attack.setValueAtTime(0.03, audioCtx.currentTime);
             compressor.release.setValueAtTime(1.0, audioCtx.currentTime);
 
             masterGain.connect(compressor);
@@ -236,14 +239,14 @@
 
             // Create sweeping Ping-Pong/Feedback Delay
             delay = audioCtx.createDelay(5.0);
-            delay.delayTime.value = 2.5;
+            delay.delayTime.value = DELAY_TIME_SECONDS;
             delayFeedback = audioCtx.createGain();
-            delayFeedback.gain.value = 0.4;
+            delayFeedback.gain.value = DELAY_FEEDBACK_GAIN;
             
             // Filter in the delay feedback loop to darken repeats (tape style)
             const delayFilter = audioCtx.createBiquadFilter();
             delayFilter.type = 'lowpass';
-            delayFilter.frequency.value = 1200;
+            delayFilter.frequency.value = DELAY_FILTER_CUTOFF_HZ;
 
             delay.connect(delayFilter);
             delayFilter.connect(delayFeedback);
