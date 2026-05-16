@@ -62,5 +62,39 @@
         {% endfor %}
     </ul>
 
+    <script>
+        (function() {
+            const links = document.querySelectorAll('ul li a[href]');
+            links.forEach((link) => {
+                const href = link.getAttribute('href');
+                if (!href) return;
+
+                fetch(href)
+                    .then((response) => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load description');
+                        }
+                        return response.text();
+                    })
+                    .then((html) => {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        const meta = doc.querySelector('meta[name="experiment-description"]');
+                        const description = meta && meta.getAttribute('content');
+
+                        if (!description) return;
+
+                        const span = document.createElement('span');
+                        span.className = 'description';
+                        span.textContent = `— ${description}`;
+                        link.insertAdjacentElement('afterend', span);
+                    })
+                    .catch(() => {
+                        // Leave link without description when metadata is unavailable.
+                    });
+            });
+        })();
+    </script>
+
 </body>
 </html>
