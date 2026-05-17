@@ -127,6 +127,7 @@
     let isAudioInitialized = false;
     let globalOut; // Added global output for muting
     let isMuted = false; // Added mute state
+    const BACKGROUND_GLOBAL_GAIN = 0.13;
 
     function initDarkDroneAudio() {
         if (isAudioInitialized) return;
@@ -137,24 +138,37 @@
 
         // Global Output (for mute functionality)
         globalOut = audioCtx.createGain();
-        globalOut.gain.value = isMuted ? 0 : 0.2; // Drastically lowered global volume (was 0.6)
+        globalOut.gain.value = isMuted ? 0 : BACKGROUND_GLOBAL_GAIN;
         globalOut.connect(audioCtx.destination);
 
         // Master Volume for Drone
         const masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0.05; // Much quieter drone audio (was 0.15)
-        masterGain.connect(globalOut);
+        masterGain.gain.value = 0.032;
+        
+        // Gentle tonal shaping so ambience stays dark and in the background
+        const droneHighpass = audioCtx.createBiquadFilter();
+        droneHighpass.type = 'highpass';
+        droneHighpass.frequency.value = 45;
+        
+        const droneLowpass = audioCtx.createBiquadFilter();
+        droneLowpass.type = 'lowpass';
+        droneLowpass.frequency.value = 900;
+        droneLowpass.Q.value = 0.7;
+
+        masterGain.connect(droneHighpass);
+        droneHighpass.connect(droneLowpass);
+        droneLowpass.connect(globalOut);
 
         // Simple Delay for Space Reverb Effect
         const delay = audioCtx.createDelay();
-        delay.delayTime.value = 0.6; // Long delay
+        delay.delayTime.value = 0.48;
         const feedback = audioCtx.createGain();
-        feedback.gain.value = 0.5; // High feedback for long tail
+        feedback.gain.value = 0.58;
         
         // Lowpass filter to muffle the echoes
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.value = 800;
+        filter.frequency.value = 620;
 
         delay.connect(feedback);
         feedback.connect(filter);
@@ -162,35 +176,35 @@
         delay.connect(masterGain);
 
         // Define a deep, menacing chord (Frequencies in Hz)
-        const baseFreq = 45; // Very low
-        const frequencies = [baseFreq, baseFreq * 1.5, baseFreq * 2.01, baseFreq * 0.5 + 2]; 
+        const baseFreq = 42;
+        const frequencies = [baseFreq, 56, 63.5, 84, 109];
 
         frequencies.forEach((freq, index) => {
             // Oscillator
             const osc = audioCtx.createOscillator();
-            osc.type = index % 2 === 0 ? 'sine' : 'triangle';
+            osc.type = index % 3 === 0 ? 'triangle' : 'sine';
             osc.frequency.value = freq;
 
             // Pitch LFO (creates an eerie detuning wobble)
             const pitchLfo = audioCtx.createOscillator();
             pitchLfo.type = 'sine';
-            pitchLfo.frequency.value = 0.05 + (index * 0.01); // Very slow
+            pitchLfo.frequency.value = 0.03 + (index * 0.007);
             const pitchGain = audioCtx.createGain();
-            pitchGain.gain.value = 1.5; // Wobble amount
+            pitchGain.gain.value = 0.65;
             pitchLfo.connect(pitchGain);
             pitchGain.connect(osc.frequency);
 
             // Amplitude LFO (creates the slow pulsating volume)
             const ampLfo = audioCtx.createOscillator();
             ampLfo.type = 'sine';
-            ampLfo.frequency.value = 0.08 + (index * 0.03); 
+            ampLfo.frequency.value = 0.05 + (index * 0.018); 
             const ampGainLfoScale = audioCtx.createGain();
-            ampGainLfoScale.gain.value = 0.5; // Depth of volume pulsing
+            ampGainLfoScale.gain.value = 0.045;
             ampLfo.connect(ampGainLfoScale);
 
             // Channel Volume Control
             const channelGain = audioCtx.createGain();
-            channelGain.gain.value = 0.3; // Base volume per osc
+            channelGain.gain.value = 0.12;
             
             // Connect Amp LFO to Channel Gain
             ampGainLfoScale.connect(channelGain.gain);
@@ -205,6 +219,47 @@
             pitchLfo.start();
             ampLfo.start();
         });
+
+        // Quiet, occasional "computer chirps" for a Star Trek-like bridge ambience.
+        function scheduleComputerTone() {
+            const nextDelayMs = 2400 + Math.random() * 3200;
+            window.setTimeout(() => {
+                if (!audioCtx || audioCtx.state !== 'running') {
+                    scheduleComputerTone();
+                    return;
+                }
+
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const toneFilter = audioCtx.createBiquadFilter();
+                const toneGain = audioCtx.createGain();
+
+                toneFilter.type = 'bandpass';
+                toneFilter.frequency.value = 900 + Math.random() * 1000;
+                toneFilter.Q.value = 7;
+
+                osc.type = Math.random() > 0.45 ? 'triangle' : 'square';
+                const notes = [196, 220, 246.94, 261.63, 293.66, 329.63];
+                const note = notes[Math.floor(Math.random() * notes.length)] * (Math.random() > 0.65 ? 2 : 1);
+                osc.frequency.setValueAtTime(note, now);
+                osc.frequency.exponentialRampToValueAtTime(note * 1.03, now + 0.14);
+
+                toneGain.gain.setValueAtTime(0.0001, now);
+                toneGain.gain.exponentialRampToValueAtTime(0.012, now + 0.015);
+                toneGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+
+                osc.connect(toneFilter);
+                toneFilter.connect(toneGain);
+                toneGain.connect(delay);
+
+                osc.start(now);
+                osc.stop(now + 0.22);
+
+                scheduleComputerTone();
+            }, nextDelayMs);
+        }
+
+        scheduleComputerTone();
     }
 
     function playShootSound() {
@@ -223,11 +278,11 @@
 
         // Deep synth laser
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+        osc.frequency.setValueAtTime(260, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(55, audioCtx.currentTime + 0.2);
 
         // Fast decay envelope
-        gain.gain.setValueAtTime(0.04, audioCtx.currentTime); // Lowered laser volume (was 0.15)
+        gain.gain.setValueAtTime(0.025, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
 
         osc.start();
@@ -254,7 +309,7 @@
         filter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.8);
 
         const noiseGain = audioCtx.createGain();
-        noiseGain.gain.setValueAtTime(0.08, audioCtx.currentTime); // Reduced explosion harshness (was 0.2)
+        noiseGain.gain.setValueAtTime(0.06, audioCtx.currentTime);
         noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
 
         noise.connect(filter);
@@ -270,7 +325,7 @@
         subOsc.frequency.setValueAtTime(120, audioCtx.currentTime);
         subOsc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5);
         
-        subGain.gain.setValueAtTime(0.1, audioCtx.currentTime); // Reduced sub explosion volume (was 0.3)
+        subGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
         subGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
         
         subOsc.connect(subGain);
@@ -834,7 +889,7 @@
                 if (globalOut) globalOut.gain.setValueAtTime(0, audioCtx.currentTime);
             } else {
                 audioCtx.resume();
-                if (globalOut) globalOut.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                if (globalOut) globalOut.gain.setValueAtTime(BACKGROUND_GLOBAL_GAIN, audioCtx.currentTime);
             }
         }
         document.getElementById('mute-btn').innerText = isMuted ? "🔇 UNMUTE" : "🔊 MUTE";
