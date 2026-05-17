@@ -43,9 +43,14 @@
     <div id="ui-layer" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6">
         
         <!-- HUD -->
-        <div id="hud" class="flex justify-between items-start hidden">
-            <div class="text-3xl font-bold text-cyan-400 hud-text tracking-widest">SCORE: <span id="score-display">0</span></div>
-            <div class="text-3xl font-bold text-red-400 hud-text tracking-widest">HULL: <span id="lives-display">3</span></div>
+        <div id="hud" class="flex justify-between items-start hidden w-full pointer-events-auto">
+            <div class="flex gap-8">
+                <div class="text-3xl font-bold text-cyan-400 hud-text tracking-widest">SCORE: <span id="score-display">0</span></div>
+                <div class="text-3xl font-bold text-red-400 hud-text tracking-widest">HULL: <span id="lives-display">3</span></div>
+            </div>
+            <button id="mute-btn" class="neon-button bg-gray-900 border border-gray-600 hover:bg-gray-800 text-white px-4 py-2 rounded text-sm tracking-widest transition">
+                🔊 MUTE
+            </button>
         </div>
 
         <!-- Screens -->
@@ -117,9 +122,11 @@
     </div>
 
 <script>
-    /** --- 0. AUDIO ENGINE (DARK DRONE) --- **/
+    /** --- 0. AUDIO ENGINE (DARK DRONE & SFX) --- **/
     let audioCtx;
     let isAudioInitialized = false;
+    let globalOut; // Added global output for muting
+    let isMuted = false; // Added mute state
 
     function initDarkDroneAudio() {
         if (isAudioInitialized) return;
@@ -128,10 +135,15 @@
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AudioContext();
 
-        // Master Volume
+        // Global Output (for mute functionality)
+        globalOut = audioCtx.createGain();
+        globalOut.gain.value = isMuted ? 0 : 0.2; // Drastically lowered global volume (was 0.6)
+        globalOut.connect(audioCtx.destination);
+
+        // Master Volume for Drone
         const masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0.4;
-        masterGain.connect(audioCtx.destination);
+        masterGain.gain.value = 0.05; // Much quieter drone audio (was 0.15)
+        masterGain.connect(globalOut);
 
         // Simple Delay for Space Reverb Effect
         const delay = audioCtx.createDelay();
@@ -207,7 +219,7 @@
 
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(audioCtx.destination);
+        gain.connect(globalOut); // Connect to global output instead of destination
 
         // Deep synth laser
         osc.type = 'sawtooth';
@@ -215,7 +227,7 @@
         osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
 
         // Fast decay envelope
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.04, audioCtx.currentTime); // Lowered laser volume (was 0.15)
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
 
         osc.start();
@@ -242,12 +254,12 @@
         filter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.8);
 
         const noiseGain = audioCtx.createGain();
-        noiseGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        noiseGain.gain.setValueAtTime(0.08, audioCtx.currentTime); // Reduced explosion harshness (was 0.2)
         noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
 
         noise.connect(filter);
         filter.connect(noiseGain);
-        noiseGain.connect(audioCtx.destination);
+        noiseGain.connect(globalOut); // Connect to global output
         noise.start();
 
         // 2. Sub-bass thump for the impact weight
@@ -258,15 +270,16 @@
         subOsc.frequency.setValueAtTime(120, audioCtx.currentTime);
         subOsc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5);
         
-        subGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        subGain.gain.setValueAtTime(0.1, audioCtx.currentTime); // Reduced sub explosion volume (was 0.3)
         subGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
         
         subOsc.connect(subGain);
-        subGain.connect(audioCtx.destination);
+        subGain.connect(globalOut); // Connect to global output
         
         subOsc.start();
         subOsc.stop(audioCtx.currentTime + 0.5);
     }
+
 
     /** --- 1. GAME STATE & GLOBALS --- **/
     let gameState = 'loading'; // loading, start, playing, gameover
@@ -455,10 +468,19 @@
             enemyGroup.userData.radius = 1.6;
         }
 
-        // Spawn far away with random offset
-        enemyGroup.position.x = (Math.random() - 0.5) * (MOVEMENT_BOUND_X * 2);
-        enemyGroup.position.y = (Math.random() - 0.5) * (MOVEMENT_BOUND_Y * 2);
-        enemyGroup.position.z = -150; 
+        // --- REFINED SPAWN LOGIC ---
+        // Pushing the bias even further toward the center (75%)
+        // and reducing the spawn distance so they don't seem "too far out".
+        const randX = Math.random() * 2 - 1; // Range: -1 to 1
+        const randY = Math.random() * 2 - 1;
+        
+        const weightedX = (Math.pow(randX, 3) * 0.75) + (randX * 0.25);
+        const weightedY = (Math.pow(randY, 3) * 0.75) + (randY * 0.25);
+
+        // Spawn closer to camera (-120 instead of -150) with the tighter offset
+        enemyGroup.position.x = weightedX * MOVEMENT_BOUND_X;
+        enemyGroup.position.y = weightedY * MOVEMENT_BOUND_Y;
+        enemyGroup.position.z = -120; 
         
         // SLOWER BASE SPEED (Ominous drifting)
         enemyGroup.userData.speed = Math.random() * 0.2 + 0.2 + (score * 0.001);
@@ -698,7 +720,9 @@
                 let hitByLaser = false;
                 for (let j = lasers.length - 1; j >= 0; j--) {
                     const l = lasers[j];
-                    if (e.position.distanceTo(l.position) < radius + 0.5) { 
+                    // --- REFINED HITBOX ---
+                    // Splitting the difference again: +1.25 gives a very satisfying sweet spot
+                    if (e.position.distanceTo(l.position) < radius + 1.25) { 
                         createExplosion(e.position, 0x00ffcc); // Cyan explosion
                         scene.remove(e);
                         enemies.splice(i, 1);
@@ -766,8 +790,13 @@
         
         // Start Audio Context on user gesture
         initDarkDroneAudio();
-        if(audioCtx && audioCtx.state === 'suspended') {
-            audioCtx.resume();
+        if(audioCtx) {
+            // Apply current mute state immediately
+            if (isMuted) {
+                audioCtx.suspend();
+            } else if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
         }
 
         cameraInstance = new Camera(videoElement, {
@@ -794,6 +823,21 @@
 
     document.getElementById('restart-btn').addEventListener('click', () => {
         resetGame();
+    });
+
+    // Mute Button Logic
+    document.getElementById('mute-btn').addEventListener('click', () => {
+        isMuted = !isMuted;
+        if (audioCtx) {
+            if (isMuted) {
+                audioCtx.suspend(); // Bulletproof mute by suspending entire context
+                if (globalOut) globalOut.gain.setValueAtTime(0, audioCtx.currentTime);
+            } else {
+                audioCtx.resume();
+                if (globalOut) globalOut.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            }
+        }
+        document.getElementById('mute-btn').innerText = isMuted ? "🔇 UNMUTE" : "🔊 MUTE";
     });
 
 </script>
