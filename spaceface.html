@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face-Controlled 3D Space Shooter</title>
+    
+    <!-- Tailwind CSS for UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Three.js for 3D Graphics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- MediaPipe for Face Tracking -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #030305; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #game-canvas { display: block; width: 100vw; height: 100vh; }
+        
+        /* Mirror the video preview so it feels natural like a mirror */
+        #preview-canvas { transform: scaleX(-1); border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
+        
+        .hud-text { text-shadow: 0 0 10px rgba(0, 255, 255, 0.8); }
+        .neon-button { 
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); 
+            transition: all 0.2s ease;
+        }
+        .neon-button:hover {
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.8);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Game Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- UI Layer -->
+    <div id="ui-layer" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6">
+        
+        <!-- HUD -->
+        <div id="hud" class="flex justify-between items-start hidden">
+            <div class="text-3xl font-bold text-cyan-400 hud-text tracking-widest">SCORE: <span id="score-display">0</span></div>
+            <div class="text-3xl font-bold text-red-400 hud-text tracking-widest">HULL: <span id="lives-display">3</span></div>
+        </div>
+
+        <!-- Screens -->
+        <div class="flex-grow flex items-center justify-center pointer-events-auto">
+            
+            <!-- Loading Screen -->
+            <div id="loading-screen" class="bg-gray-900 bg-opacity-80 p-8 rounded-2xl text-center border border-gray-800 max-w-lg shadow-2xl">
+                <h1 class="text-3xl font-bold text-white mb-4">Initializing AI Systems...</h1>
+                <p class="text-gray-400 mb-6">Downloading Face Tracking Models.</p>
+                <div class="w-full bg-gray-800 rounded-full h-2 mb-4">
+                    <div class="bg-cyan-500 h-2 rounded-full animate-pulse" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- Start Screen -->
+            <div id="start-screen" class="bg-black bg-opacity-80 p-10 rounded-2xl text-center border border-gray-800 max-w-xl hidden backdrop-blur-sm shadow-2xl">
+                <h1 class="text-5xl font-black text-cyan-500 mb-2 hud-text tracking-tighter">DEEP SPACE</h1>
+                <p class="text-xl text-gray-400 mb-8 font-light tracking-widest">ABYSSAL INCURSION</p>
+                
+                <div class="grid grid-cols-2 gap-4 mb-8 text-left text-sm bg-gray-900 bg-opacity-50 p-4 rounded-lg border border-gray-800">
+                    <div class="flex flex-col items-center p-2 border-r border-gray-800">
+                        <span class="text-3xl mb-3">🧑↔️</span>
+                        <span class="font-bold text-cyan-400 tracking-wider">NAVIGATE</span>
+                        <span class="text-gray-500 text-center mt-1">Move your head to steer the ship.</span>
+                    </div>
+                    <div class="flex flex-col items-center p-2">
+                        <span class="text-3xl mb-3">😮</span>
+                        <span class="font-bold text-red-500 tracking-wider">ENGAGE</span>
+                        <span class="text-gray-500 text-center mt-1">Open your mouth to fire lasers.</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-center gap-2 mb-6 text-xs text-gray-500">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"></path></svg>
+                    <span>Synthesizer audio will play.</span>
+                </div>
+
+                <button id="start-btn" class="neon-button bg-cyan-800 hover:bg-cyan-600 text-white font-bold py-4 px-8 rounded text-xl w-full tracking-widest border border-cyan-500">
+                    INITIATE SYSTEMS
+                </button>
+            </div>
+
+            <!-- Game Over Screen -->
+            <div id="game-over-screen" class="bg-black bg-opacity-90 p-10 rounded-2xl text-center border border-red-900 max-w-md hidden backdrop-blur-sm">
+                <h1 class="text-5xl font-black text-red-600 mb-2 tracking-widest" style="text-shadow: 0 0 15px rgba(255,0,0,0.5);">SIGNAL LOST</h1>
+                <p class="text-2xl text-gray-400 mb-8 font-light">Final Score: <span id="final-score" class="text-cyan-500 font-bold">0</span></p>
+                <button id="restart-btn" class="neon-button bg-red-900 hover:bg-red-700 text-white font-bold py-4 px-8 rounded text-xl w-full tracking-widest border border-red-500">
+                    REBOOT
+                </button>
+            </div>
+            
+        </div>
+
+        <!-- Bottom right preview -->
+        <div class="self-end mt-auto flex flex-col items-end hidden" id="preview-container">
+            <span class="text-xs text-gray-500 mb-1 bg-black bg-opacity-80 px-2 rounded tracking-widest border border-gray-800">OPTICS</span>
+            <div class="relative w-48 h-36 bg-gray-900 border border-gray-700 rounded overflow-hidden shadow-lg">
+                <!-- Hidden video element required by MediaPipe -->
+                <video id="input_video" class="hidden" autoplay playsinline></video>
+                <!-- Canvas to draw face mesh for debugging/preview -->
+                <canvas id="preview-canvas" class="absolute inset-0 w-full h-full object-cover opacity-60"></canvas>
+                
+                <!-- Mouth tracking indicator -->
+                <div id="mouth-indicator" class="absolute bottom-2 left-2 bg-black bg-opacity-90 border border-gray-800 px-2 py-1 rounded text-xs text-gray-400 flex items-center gap-2">
+                    WEAPON: <div id="mouth-status" class="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_5px_rgba(255,0,0,0.8)]"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    /** --- 0. AUDIO ENGINE (DARK DRONE) --- **/
+    let audioCtx;
+    let isAudioInitialized = false;
+
+    function initDarkDroneAudio() {
+        if (isAudioInitialized) return;
+        isAudioInitialized = true;
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+
+        // Master Volume
+        const masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.4;
+        masterGain.connect(audioCtx.destination);
+
+        // Simple Delay for Space Reverb Effect
+        const delay = audioCtx.createDelay();
+        delay.delayTime.value = 0.6; // Long delay
+        const feedback = audioCtx.createGain();
+        feedback.gain.value = 0.5; // High feedback for long tail
+        
+        // Lowpass filter to muffle the echoes
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 800;
+
+        delay.connect(feedback);
+        feedback.connect(filter);
+        filter.connect(delay);
+        delay.connect(masterGain);
+
+        // Define a deep, menacing chord (Frequencies in Hz)
+        const baseFreq = 45; // Very low
+        const frequencies = [baseFreq, baseFreq * 1.5, baseFreq * 2.01, baseFreq * 0.5 + 2]; 
+
+        frequencies.forEach((freq, index) => {
+            // Oscillator
+            const osc = audioCtx.createOscillator();
+            osc.type = index % 2 === 0 ? 'sine' : 'triangle';
+            osc.frequency.value = freq;
+
+            // Pitch LFO (creates an eerie detuning wobble)
+            const pitchLfo = audioCtx.createOscillator();
+            pitchLfo.type = 'sine';
+            pitchLfo.frequency.value = 0.05 + (index * 0.01); // Very slow
+            const pitchGain = audioCtx.createGain();
+            pitchGain.gain.value = 1.5; // Wobble amount
+            pitchLfo.connect(pitchGain);
+            pitchGain.connect(osc.frequency);
+
+            // Amplitude LFO (creates the slow pulsating volume)
+            const ampLfo = audioCtx.createOscillator();
+            ampLfo.type = 'sine';
+            ampLfo.frequency.value = 0.08 + (index * 0.03); 
+            const ampGainLfoScale = audioCtx.createGain();
+            ampGainLfoScale.gain.value = 0.5; // Depth of volume pulsing
+            ampLfo.connect(ampGainLfoScale);
+
+            // Channel Volume Control
+            const channelGain = audioCtx.createGain();
+            channelGain.gain.value = 0.3; // Base volume per osc
+            
+            // Connect Amp LFO to Channel Gain
+            ampGainLfoScale.connect(channelGain.gain);
+
+            // Routing
+            osc.connect(channelGain);
+            channelGain.connect(masterGain); // Direct out
+            channelGain.connect(delay); // Send to reverb/delay
+
+            // Start everything
+            osc.start();
+            pitchLfo.start();
+            ampLfo.start();
+        });
+    }
+
+    function playShootSound() {
+        if (!audioCtx || audioCtx.state !== 'running') return;
+        
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        
+        filter.type = 'lowpass';
+        filter.frequency.value = 800;
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        // Deep synth laser
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+
+        // Fast decay envelope
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+    }
+
+    function playExplosionSound() {
+        if (!audioCtx || audioCtx.state !== 'running') return;
+        
+        // 1. Noise burst for the crunch/shatter
+        const bufferSize = audioCtx.sampleRate * 0.8; // 0.8 seconds
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1; // White noise
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, audioCtx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.8);
+
+        const noiseGain = audioCtx.createGain();
+        noiseGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(audioCtx.destination);
+        noise.start();
+
+        // 2. Sub-bass thump for the impact weight
+        const subOsc = audioCtx.createOscillator();
+        const subGain = audioCtx.createGain();
+        
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(120, audioCtx.currentTime);
+        subOsc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5);
+        
+        subGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        subGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        
+        subOsc.connect(subGain);
+        subGain.connect(audioCtx.destination);
+        
+        subOsc.start();
+        subOsc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    /** --- 1. GAME STATE & GLOBALS --- **/
+    let gameState = 'loading'; // loading, start, playing, gameover
+    let score = 0;
+    let lives = 3;
+    let isMouthOpen = false;
+    
+    // Head Tracking Variables
+    let headTargetX = 0;
+    let headTargetY = 0;
+    const MOVEMENT_BOUND_X = 25; 
+    const MOVEMENT_BOUND_Y = 15; 
+    
+    // Game Entities
+    let ship;
+    let stars;
+    const lasers = [];
+    const enemies = [];
+    const explosions = [];
+    
+    // Timers
+    let lastShotTime = 0;
+    const SHOT_COOLDOWN = 200; // slightly slower firing
+    let lastEnemySpawnTime = 0;
+    let enemySpawnRate = 2500; // Much slower initial spawn rate for pacing
+
+    /** --- 2. THREE.JS SETUP --- **/
+    const scene = new THREE.Scene();
+    
+    // Darker fog for a deep space vibe
+    scene.fog = new THREE.FogExp2(0x020204, 0.008);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 10;
+    camera.position.y = 2;
+
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+    renderer.setClearColor(0x030305); // Very dark blue/black background
+
+    // Atmospheric Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); // Dimmer ambient
+    scene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0x0088ff, 0.6); // Cool blue key light
+    dirLight.position.set(5, 10, 5);
+    scene.add(dirLight);
+
+    const backLight = new THREE.DirectionalLight(0xff0044, 0.4); // Red rim light
+    backLight.position.set(-5, -5, -10);
+    scene.add(backLight);
+
+    // Create the Player Ship (Sleeker dark metal)
+    function createShip() {
+        const shipGroup = new THREE.Group();
+        
+        // Main Body 
+        const bodyGeo = new THREE.ConeGeometry(1, 3, 8);
+        bodyGeo.rotateX(Math.PI / 2); 
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.4 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        shipGroup.add(body);
+
+        // Wings
+        const wingGeo = new THREE.BoxGeometry(4.5, 0.1, 1.2);
+        const wingMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.5 });
+        const wings = new THREE.Mesh(wingGeo, wingMat);
+        wings.position.z = 0.5;
+        wings.position.y = -0.2;
+        shipGroup.add(wings);
+
+        // Cockpit
+        const cockpitGeo = new THREE.SphereGeometry(0.4, 16, 16);
+        cockpitGeo.scale(1, 0.8, 2); 
+        const cockpitMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: 0x004433, transparent: true, opacity: 0.9 });
+        const cockpit = new THREE.Mesh(cockpitGeo, cockpitMat);
+        cockpit.position.y = 0.4;
+        cockpit.position.z = -0.5;
+        shipGroup.add(cockpit);
+
+        // Engine Glow
+        const engineGeo = new THREE.CylinderGeometry(0.3, 0.4, 0.5, 8);
+        engineGeo.rotateX(Math.PI / 2);
+        const engineMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+        const engine = new THREE.Mesh(engineGeo, engineMat);
+        engine.position.z = 1.6;
+        engine.name = "engine"; 
+        shipGroup.add(engine);
+
+        return shipGroup;
+    }
+    ship = createShip();
+    scene.add(ship);
+
+    // Create slowly drifting Starfield
+    function createStars() {
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 1500; // Fewer stars to feel more desolate
+        const posArray = new Float32Array(starCount * 3);
+        
+        for(let i = 0; i < starCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 200; 
+        }
+        
+        starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const starMat = new THREE.PointsMaterial({ size: 0.15, color: 0x88aaff, transparent: true, opacity: 0.6 });
+        
+        stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+    }
+    createStars();
+
+    /** --- 3. GAMEPLAY MECHANICS --- **/
+
+    function shoot() {
+        playShootSound();
+
+        const laserGeo = new THREE.CylinderGeometry(0.05, 0.05, 3, 8); // Thinner, longer lasers
+        laserGeo.rotateX(Math.PI / 2);
+        const laserMat = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // Cyan lasers to match vibe
+        
+        const laserL = new THREE.Mesh(laserGeo, laserMat);
+        laserL.position.set(ship.position.x - 1.8, ship.position.y, ship.position.z);
+        scene.add(laserL);
+        lasers.push(laserL);
+
+        const laserR = new THREE.Mesh(laserGeo, laserMat);
+        laserR.position.set(ship.position.x + 1.8, ship.position.y, ship.position.z);
+        scene.add(laserR);
+        lasers.push(laserR);
+    }
+
+    function spawnEnemy() {
+        const enemyGroup = new THREE.Group();
+        const type = Math.random();
+
+        if (type > 0.5) {
+            // Type 1: Alien Drone (Glowing core + rotating mechanical rings)
+            const coreGeo = new THREE.IcosahedronGeometry(0.8, 0);
+            const coreMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff1100, emissiveIntensity: 0.6, flatShading: true });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            
+            const ringGeo = new THREE.TorusGeometry(1.6, 0.1, 8, 24);
+            const ringMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.9, roughness: 0.2 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            
+            const ring2Geo = new THREE.TorusGeometry(1.2, 0.05, 8, 24);
+            const ring2 = new THREE.Mesh(ring2Geo, ringMat);
+            ring2.rotation.x = Math.PI / 2;
+
+            enemyGroup.add(core);
+            enemyGroup.add(ring);
+            enemyGroup.add(ring2);
+            
+            // Custom animation function for this enemy type
+            enemyGroup.userData.animate = (delta) => {
+                ring.rotation.x += delta * 2.5;
+                ring.rotation.y += delta * 1.5;
+                ring2.rotation.z -= delta * 3;
+                core.rotation.y += delta;
+            };
+
+            // Hit radius
+            enemyGroup.userData.radius = 1.6;
+
+        } else {
+            // Type 2: Crystalline Mine (Glowing green crystal in cyan cage)
+            const cageGeo = new THREE.IcosahedronGeometry(1.6, 1);
+            const cageMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, wireframe: true, transparent: true, opacity: 0.3 });
+            const cage = new THREE.Mesh(cageGeo, cageMat);
+
+            const crystalGeo = new THREE.OctahedronGeometry(1.0, 0);
+            const crystalMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x00ffaa, emissiveIntensity: 0.5, flatShading: true });
+            const crystal = new THREE.Mesh(crystalGeo, crystalMat);
+
+            enemyGroup.add(cage);
+            enemyGroup.add(crystal);
+
+            enemyGroup.userData.animate = (delta) => {
+                cage.rotation.y += delta * 0.5;
+                cage.rotation.z -= delta * 0.3;
+                crystal.rotation.x -= delta * 1.5;
+            };
+            
+            enemyGroup.userData.radius = 1.6;
+        }
+
+        // Spawn far away with random offset
+        enemyGroup.position.x = (Math.random() - 0.5) * (MOVEMENT_BOUND_X * 2);
+        enemyGroup.position.y = (Math.random() - 0.5) * (MOVEMENT_BOUND_Y * 2);
+        enemyGroup.position.z = -150; 
+        
+        // SLOWER BASE SPEED (Ominous drifting)
+        enemyGroup.userData.speed = Math.random() * 0.2 + 0.2 + (score * 0.001);
+
+        scene.add(enemyGroup);
+        enemies.push(enemyGroup);
+    }
+
+    function createExplosion(pos, color = 0xff5500) {
+        playExplosionSound();
+
+        const particleCount = 30; // More particles
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const velocities = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            positions[i * 3] = pos.x;
+            positions[i * 3 + 1] = pos.y;
+            positions[i * 3 + 2] = pos.z;
+            velocities.push({
+                x: (Math.random() - 0.5) * 4,
+                y: (Math.random() - 0.5) * 4,
+                z: (Math.random() - 0.5) * 4
+            });
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.PointsMaterial({ color: color, size: 0.6, transparent: true, blending: THREE.AdditiveBlending });
+        const particles = new THREE.Points(geometry, material);
+        
+        scene.add(particles);
+        explosions.push({ mesh: particles, velocities: velocities, age: 0 });
+    }
+
+    function takeDamage() {
+        lives--;
+        document.getElementById('lives-display').innerText = lives;
+        
+        // Dark red screen flash
+        const flash = document.createElement('div');
+        flash.className = "absolute inset-0 bg-red-900 opacity-60 pointer-events-none transition-opacity duration-500 z-50";
+        document.body.appendChild(flash);
+        setTimeout(() => flash.classList.remove('opacity-60', 'opacity-0'), 50);
+        setTimeout(() => flash.remove(), 600);
+
+        if (lives <= 0) {
+            gameOver();
+        }
+    }
+
+    function gameOver() {
+        gameState = 'gameover';
+        createExplosion(ship.position, 0x00ffff);
+        ship.visible = false;
+        
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.remove('hidden');
+        document.getElementById('final-score').innerText = score;
+    }
+
+    function resetGame() {
+        score = 0;
+        lives = 3;
+        document.getElementById('score-display').innerText = score;
+        document.getElementById('lives-display').innerText = lives;
+        
+        // Clear entities
+        lasers.forEach(l => scene.remove(l)); lasers.length = 0;
+        enemies.forEach(e => scene.remove(e)); enemies.length = 0;
+        explosions.forEach(ex => scene.remove(ex.mesh)); explosions.length = 0;
+
+        ship.position.set(0, 0, 0);
+        ship.rotation.set(0, 0, 0);
+        ship.visible = true;
+        
+        document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('hud').classList.remove('hidden');
+        
+        gameState = 'playing';
+    }
+
+    /** --- 4. MEDIAPIPE FACE TRACKING --- **/
+    
+    const videoElement = document.getElementById('input_video');
+    const previewCanvas = document.getElementById('preview-canvas');
+    const previewCtx = previewCanvas.getContext('2d');
+    const mouthStatusIndicator = document.getElementById('mouth-status');
+    let cameraInstance = null;
+
+    function onResults(results) {
+        previewCanvas.width = videoElement.videoWidth;
+        previewCanvas.height = videoElement.videoHeight;
+        
+        previewCtx.save();
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        previewCtx.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
+
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+            const landmarks = results.multiFaceLandmarks[0];
+            
+            // Subtler drawing for the dark theme
+            drawConnectors(previewCtx, landmarks, FACEMESH_TESSELATION, {color: '#00FFFF10', lineWidth: 0.5});
+            drawConnectors(previewCtx, landmarks, FACEMESH_LIPS, {color: '#FF0044', lineWidth: 1.5});
+
+            /** MOUTH OPEN DETECTION */
+            const upperLip = landmarks[13];
+            const lowerLip = landmarks[14];
+            const faceTop = landmarks[10];
+            const faceBottom = landmarks[152];
+
+            const mouthDist = Math.hypot(upperLip.x - lowerLip.x, upperLip.y - lowerLip.y);
+            const faceDist = Math.hypot(faceTop.x - faceBottom.x, faceTop.y - faceBottom.y);
+            const mouthRatio = mouthDist / faceDist;
+            
+            if (mouthRatio > 0.06) {
+                isMouthOpen = true;
+                mouthStatusIndicator.classList.replace('bg-red-600', 'bg-cyan-400');
+                mouthStatusIndicator.style.boxShadow = "0 0 10px rgba(0, 255, 255, 0.8)";
+                ship.children.find(c => c.name === "engine").material.color.setHex(0xff0044); // Red engine when firing
+            } else {
+                isMouthOpen = false;
+                mouthStatusIndicator.classList.replace('bg-cyan-400', 'bg-red-600');
+                mouthStatusIndicator.style.boxShadow = "0 0 5px rgba(255, 0, 0, 0.8)";
+                ship.children.find(c => c.name === "engine").material.color.setHex(0x00ffff);
+            }
+
+            /** HEAD STEERING */
+            const nose = landmarks[1];
+            headTargetX = (0.5 - nose.x) * MOVEMENT_BOUND_X * 2;
+            headTargetY = (0.5 - nose.y) * MOVEMENT_BOUND_Y * 2;
+            
+            headTargetX = Math.max(-MOVEMENT_BOUND_X, Math.min(MOVEMENT_BOUND_X, headTargetX));
+            headTargetY = Math.max(-MOVEMENT_BOUND_Y, Math.min(MOVEMENT_BOUND_Y, headTargetY));
+        }
+        
+        previewCtx.restore();
+    }
+
+    const faceMesh = new FaceMesh({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+    }});
+    
+    faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+    
+    faceMesh.onResults(onResults);
+
+    faceMesh.initialize().then(() => {
+        document.getElementById('loading-screen').classList.add('hidden');
+        document.getElementById('start-screen').classList.remove('hidden');
+        gameState = 'start';
+    });
+
+    /** --- 5. MAIN ANIMATION LOOP --- **/
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        const delta = clock.getDelta();
+        const now = Date.now();
+
+        // Animate stars much slower for deep space feel
+        const positions = stars.geometry.attributes.position.array;
+        for(let i = 2; i < positions.length; i += 3) {
+            positions[i] += 15 * delta; 
+            if(positions[i] > 10) {
+                positions[i] = -200; 
+            }
+        }
+        stars.geometry.attributes.position.needsUpdate = true;
+
+        if (gameState === 'playing') {
+            
+            // 1. Move ship towards head target
+            ship.position.x += (headTargetX - ship.position.x) * 8 * delta;
+            ship.position.y += (headTargetY - ship.position.y) * 8 * delta;
+
+            // 2. Add banking/tilting effects
+            const targetRotZ = (headTargetX - ship.position.x) * -0.15;
+            ship.rotation.z += (targetRotZ - ship.rotation.z) * 8 * delta;
+            
+            const targetRotX = (headTargetY - ship.position.y) * 0.1;
+            ship.rotation.x += (targetRotX - ship.rotation.x) * 8 * delta;
+
+            // 3. Shooting Logic
+            if (isMouthOpen && now - lastShotTime > SHOT_COOLDOWN) {
+                shoot();
+                lastShotTime = now;
+            }
+
+            // 4. Update Lasers
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                const l = lasers[i];
+                l.position.z -= 150 * delta; 
+                if (l.position.z < -200) {
+                    scene.remove(l);
+                    lasers.splice(i, 1);
+                }
+            }
+
+            // 5. Spawn Enemies (Slower spawn rate curve)
+            enemySpawnRate = Math.max(800, 2500 - (score * 5)); 
+            if (now - lastEnemySpawnTime > enemySpawnRate) {
+                spawnEnemy();
+                lastEnemySpawnTime = now;
+            }
+
+            // 6. Update Enemies & Check Collisions
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                
+                // Movement
+                e.position.z += e.userData.speed * 60 * delta;
+                
+                // Execute individual complex animations
+                if(e.userData.animate) e.userData.animate(delta);
+
+                const radius = e.userData.radius || 1.5;
+
+                // Player Collision
+                if (e.position.distanceTo(ship.position) < radius + 0.5) {
+                    createExplosion(e.position, 0xff0044); // Red explosion
+                    scene.remove(e);
+                    enemies.splice(i, 1);
+                    takeDamage();
+                    continue; 
+                }
+
+                // Laser Collision
+                let hitByLaser = false;
+                for (let j = lasers.length - 1; j >= 0; j--) {
+                    const l = lasers[j];
+                    if (e.position.distanceTo(l.position) < radius + 0.5) { 
+                        createExplosion(e.position, 0x00ffcc); // Cyan explosion
+                        scene.remove(e);
+                        enemies.splice(i, 1);
+                        scene.remove(l);
+                        lasers.splice(j, 1);
+                        hitByLaser = true;
+                        
+                        score += 10;
+                        document.getElementById('score-display').innerText = score;
+                        break; 
+                    }
+                }
+
+                if (hitByLaser) continue;
+
+                // Remove if passed camera
+                if (e.position.z > 15) {
+                    scene.remove(e);
+                    enemies.splice(i, 1);
+                }
+            }
+        }
+
+        // 7. Update Particle Explosions
+        for (let i = explosions.length - 1; i >= 0; i--) {
+            const ex = explosions[i];
+            const positions = ex.mesh.geometry.attributes.position.array;
+            ex.age += delta;
+
+            for (let j = 0; j < ex.velocities.length; j++) {
+                // Apply drag to particles
+                ex.velocities[j].x *= 0.95;
+                ex.velocities[j].y *= 0.95;
+                ex.velocities[j].z *= 0.95;
+                
+                positions[j * 3] += ex.velocities[j].x * 10 * delta;
+                positions[j * 3 + 1] += ex.velocities[j].y * 10 * delta;
+                positions[j * 3 + 2] += ex.velocities[j].z * 10 * delta;
+            }
+            ex.mesh.geometry.attributes.position.needsUpdate = true;
+            ex.mesh.material.opacity = 1 - (ex.age / 1.5); 
+
+            if (ex.age > 1.5) {
+                scene.remove(ex.mesh);
+                explosions.splice(i, 1);
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+    
+    // Start loop
+    animate();
+
+    /** --- 6. EVENT LISTENERS --- **/
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+        document.getElementById('start-btn').innerText = "CALIBRATING SENSORS...";
+        
+        // Start Audio Context on user gesture
+        initDarkDroneAudio();
+        if(audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        cameraInstance = new Camera(videoElement, {
+            onFrame: async () => {
+                await faceMesh.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+
+        cameraInstance.start()
+            .then(() => {
+                document.getElementById('start-screen').classList.add('hidden');
+                document.getElementById('hud').classList.remove('hidden');
+                document.getElementById('preview-container').classList.remove('hidden');
+                gameState = 'playing';
+            })
+            .catch((err) => {
+                console.error(err);
+                alert("Optical sensor failure. Please check webcam permissions.");
+                document.getElementById('start-btn').innerText = "INITIATE SYSTEMS";
+            });
+    });
+
+    document.getElementById('restart-btn').addEventListener('click', () => {
+        resetGame();
+    });
+
+</script>
+</body>
+</html>
