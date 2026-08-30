@@ -708,6 +708,7 @@
         mainContainer.classList.add('p-0', 'fixed', 'inset-0', 'z-50', 'bg-black');
         canvasCard.classList.remove('rounded-2xl', 'border', 'max-w-6xl', 'aspect-[4/3]', 'sm:aspect-video');
         canvasCard.classList.add('w-screen', 'h-screen', 'rounded-none', 'border-0');
+        document.body.style.cursor = 'none';
 
         if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
           document.documentElement.requestFullscreen().catch(() => {});
@@ -727,6 +728,7 @@
         mainContainer.classList.remove('p-0', 'fixed', 'inset-0', 'z-50');
         canvasCard.classList.add('rounded-2xl', 'border', 'max-w-6xl', 'aspect-[4/3]', 'sm:aspect-video');
         canvasCard.classList.remove('w-screen', 'h-screen', 'rounded-none', 'border-0');
+        document.body.style.cursor = '';
 
         zenToast.classList.add('opacity-0');
 
