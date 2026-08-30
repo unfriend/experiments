@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Artlover, 2026 — Live Face Tracker & AR Plaque</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- MediaPipe Face Detection -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      user-select: none;
+    }
+    .font-art {
+      font-family: 'Cinzel', serif;
+    }
+    .font-mono-tech {
+      font-family: 'Space Grotesk', monospace;
+    }
+    /* Pulsing glow animation */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.1); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-animation {
+      animation: pulse-ring 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    /* Glassmorphic UI */
+    .glass-panel {
+      background: rgba(18, 18, 24, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .glass-button {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      transition: all 0.2s ease;
+    }
+    .glass-button:hover {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.35);
+      transform: translateY(-1px);
+    }
+    .glass-button:active {
+      transform: translateY(1px);
+    }
+    /* Fullscreen Zen Mode Transitions */
+    .ui-element {
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    .zen-hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: scale(0.98);
+    }
+    /* Custom Scrollbar for Pool */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(245, 158, 11, 0.5);
+    }
+  </style>
+</head>
+<body id="app-body" class="bg-neutral-950 text-neutral-100 min-h-screen flex flex-col overflow-x-hidden selection:bg-amber-500 selection:text-black">
+
+  <!-- TOP HEADER (Toggled in Zen/Fullscreen Mode) -->
+  <header id="main-header" class="ui-element w-full z-30 glass-panel border-b border-neutral-800/80 px-4 sm:px-6 py-3.5 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-indigo-500 p-[1.5px] shadow-lg shadow-amber-500/20">
+        <div class="w-full h-full bg-neutral-950 rounded-[10px] flex items-center justify-center">
+          <svg class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21a9 9 0 0 0 9-9H3a9 9 0 0 0 9 9Z"/>
+            <path d="M19 9a7 7 0 1 0-14 0"/>
+            <circle cx="12" cy="12" r="2"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          <span class="font-art bg-gradient-to-r from-amber-200 via-rose-200 to-purple-200 bg-clip-text text-transparent">EXHIBIT // FACIAL ARCHIVE</span>
+          <span class="text-[10px] uppercase font-mono-tech px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">Live AR</span>
+        </h1>
+        <p class="text-xs text-neutral-400 hidden sm:block">Dramatic shine, pulse & typewriter role transformation (20s–30s)</p>
+      </div>
+    </div>
+
+    <!-- Quick Controls & Face Counter -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neutral-900/90 border border-neutral-800 text-xs font-mono-tech">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" id="status-indicator"></span>
+        <span class="text-neutral-400">Tracked:</span>
+        <span id="face-count" class="font-bold text-emerald-400">0</span>
+      </div>
+
+      <!-- Quick Reshuffle All Pool Button -->
+      <button id="shuffle-pool-btn" class="glass-button px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-neutral-200 hover:text-amber-300" title="Click to trigger dramatic re-randomization on all tags">
+        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span class="hidden sm:inline">Dramatic Shuffle</span>
+        <span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono-tech text-[10px] border border-amber-500/30 font-bold">20-30s</span>
+      </button>
+
+      <!-- Hotkey Fullscreen Button -->
+      <button id="zen-mode-btn" class="glass-button px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-amber-300 hover:text-amber-200 border-amber-500/30" title="Fullscreen Clean Mode (Press 'S')">
+        <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+        </svg>
+        <span class="hidden md:inline">Exhibit Mode</span>
+        <kbd class="px-1.5 py-0.5 text-[10px] font-mono-tech bg-neutral-800/90 border border-neutral-700 text-amber-400 rounded font-bold">S</kbd>
+      </button>
+
+      <button id="toggle-camera-btn" class="glass-button px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-neutral-200 hover:text-white">
+        <svg id="cam-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        <span id="cam-btn-text">Pause</span>
+      </button>
+
+      <button id="settings-toggle-btn" class="glass-button p-2 rounded-lg text-neutral-200 hover:text-white" title="Settings & Pool">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main id="main-container" class="flex-1 relative flex items-center justify-center bg-black overflow-hidden p-2 sm:p-4 transition-all duration-300">
+    
+    <!-- Video element (hidden, feeding the tracker) -->
+    <video id="webcam-video" class="hidden" playsinline muted></video>
+
+    <!-- Main Rendering Canvas Wrapper -->
+    <div id="canvas-card" class="relative w-full max-w-6xl aspect-[4/3] sm:aspect-video rounded-2xl overflow-hidden shadow-2xl border border-neutral-800 bg-neutral-900 flex items-center justify-center group transition-all duration-300">
+      <canvas id="ar-canvas" class="w-full h-full object-contain"></canvas>
+
+      <!-- Loading State Overlay -->
+      <div id="loading-overlay" class="absolute inset-0 bg-neutral-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20">
+        <div class="relative w-20 h-20 mb-5">
+          <div class="absolute inset-0 rounded-full border-2 border-amber-500/20 pulse-animation"></div>
+          <div class="w-full h-full rounded-full border-2 border-t-amber-400 border-r-rose-400 border-b-transparent border-l-transparent animate-spin"></div>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <svg class="w-8 h-8 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
+            </svg>
+          </div>
+        </div>
+        <h2 class="text-xl font-bold font-art text-amber-200 mb-1">Initializing Neural Vision</h2>
+        <p class="text-neutral-400 text-sm max-w-sm" id="loading-text">Requesting camera access & compiling face detector model...</p>
+        <button id="retry-cam-btn" class="hidden mt-4 px-4 py-2 rounded-lg bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors">
+          Grant Camera Permission
+        </button>
+      </div>
+
+      <!-- AR HUD Corner Elements for style (hidden during clean mode) -->
+      <div class="ui-element pointer-events-none absolute top-4 left-4 flex flex-col gap-1 text-[11px] font-mono-tech text-neutral-500 z-10">
+        <div class="flex items-center gap-1.5 text-neutral-300">
+          <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+          <span>SYSTEM // AR-TRACKER ACTIVE</span>
+        </div>
+        <div>RENDER_MODE: <span id="hud-theme-text" class="text-amber-400 font-semibold uppercase">MUSEUM PLAQUE</span></div>
+        <div>ROTATION: <span id="hud-mode-text" class="text-emerald-400 font-semibold uppercase">DRAMATIC FX (20s - 30s)</span></div>
+        <div>FPS: <span id="fps-counter" class="text-neutral-300 font-bold">60</span></div>
+      </div>
+
+      <!-- Individual Shuffle Notification Badge -->
+      <div id="shuffle-notice" class="pointer-events-none absolute top-6 left-1/2 -translate-x-1/2 opacity-0 transform -translate-y-2 transition-all duration-300 z-20">
+        <div class="px-3.5 py-1.5 rounded-full bg-amber-500/20 backdrop-blur-md border border-amber-500/50 text-amber-200 text-xs font-mono-tech flex items-center gap-2 shadow-lg shadow-amber-500/20">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+          <span id="shuffle-notice-text">Role Swapped</span>
+        </div>
+      </div>
+
+      <div class="ui-element pointer-events-none absolute bottom-4 left-4 text-[10px] font-mono-tech text-neutral-500/80 z-10 hidden sm:block">
+        ACTIVE POOL: <span class="text-amber-300" id="hud-pool-count">14 titles loaded</span> • PRESS <kbd class="bg-neutral-800 text-neutral-300 px-1 rounded font-mono border border-neutral-700">S</kbd> FOR FULLSCREEN EXHIBIT
+      </div>
+
+      <!-- Floating Canvas Quick Actions (Snap Photo, Mirror, Switch Cam) -->
+      <div id="floating-actions" class="ui-element absolute bottom-4 right-4 flex items-center gap-2 z-10">
+        <button id="flip-btn" class="glass-button p-2.5 rounded-full text-neutral-300 hover:text-white" title="Mirror / Flip Video">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+          </svg>
+        </button>
+        <button id="snapshot-btn" class="p-3 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-neutral-950 font-bold shadow-lg shadow-amber-500/25 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center" title="Capture Artwork Snapshot">
+          <svg class="w-5 h-5 text-neutral-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- IMMERSIVE MODE TOAST NOTIFICATION -->
+  <div id="zen-toast" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-500">
+    <div class="px-4 py-2 rounded-full glass-panel border border-amber-500/40 text-xs font-mono-tech text-amber-200 shadow-2xl flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+      <span>Exhibit Fullscreen Activated — Press <strong class="text-white bg-black/60 px-1.5 py-0.5 rounded border border-neutral-700">S</strong> or <strong class="text-white bg-black/60 px-1.5 py-0.5 rounded border border-neutral-700">ESC</strong> to exit</span>
+    </div>
+  </div>
+
+  <!-- CONTROL DRAWER / SETTINGS PANEL -->
+  <aside id="settings-panel" class="fixed inset-y-0 right-0 w-full sm:w-[420px] glass-panel border-l border-neutral-800/90 z-40 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col shadow-2xl">
+    <!-- Header -->
+    <div class="px-5 py-4 border-b border-neutral-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <h3 class="font-bold text-base text-white">Exhibition & Pool Settings</h3>
+      </div>
+      <button id="close-settings-btn" class="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Scrollable content -->
+    <div class="flex-1 overflow-y-auto p-5 space-y-6 text-sm">
+      
+      <!-- Hotkey banner helper -->
+      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between">
+        <span>Press <kbd class="px-1.5 py-0.5 bg-neutral-900 border border-amber-500/40 rounded text-amber-300 font-bold font-mono-tech">S</kbd> anytime for clean museum kiosk mode.</span>
+      </div>
+
+      <!-- TITLE ASSIGNMENT MODE TOGGLE -->
+      <div>
+        <label class="block font-medium text-neutral-300 mb-2 text-xs uppercase font-mono-tech tracking-wider">Title Assignment Mode</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="mode-pool-btn" class="p-2.5 rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-200 font-semibold text-xs flex flex-col items-center justify-center gap-1 transition-all">
+            <span class="text-sm">🎲 Dynamic Pool</span>
+            <span class="text-[10px] text-neutral-400 font-normal">Random switch per person</span>
+          </button>
+          <button id="mode-fixed-btn" class="p-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-neutral-300 font-semibold text-xs flex flex-col items-center justify-center gap-1 transition-all">
+            <span class="text-sm">🔒 Fixed Single Title</span>
+            <span class="text-[10px] text-neutral-400 font-normal">Same for everyone</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- INDIVIDUAL RANDOM SWITCH CONFIGURATION -->
+      <div class="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-xs uppercase font-mono-tech tracking-wider font-bold text-amber-200">Dramatic Role Transition</span>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="auto-shuffle-toggle" class="sr-only peer" checked>
+            <div class="w-9 h-5 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+          </label>
+        </div>
+
+        <p class="text-[11px] text-neutral-400 leading-relaxed">Each person's badge expands with a radiant flare, casts a light sweep shine, and types in the new role between 20s and 30s.</p>
+
+        <div class="space-y-2 pt-1">
+          <div class="flex justify-between items-center text-xs text-neutral-400">
+            <span>Interval Range:</span>
+            <span class="font-mono-tech text-amber-300 font-bold">20s – 30s per face</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- POOL MANAGER SECTION (Visible when in Pool Mode) -->
+      <div id="pool-manager-section" class="space-y-3 p-3.5 rounded-xl bg-neutral-900/70 border border-neutral-800">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="text-amber-400 font-mono-tech text-xs uppercase tracking-wider font-bold">Role Pool Collection</span>
+            <span id="pool-badge-count" class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-full font-mono">14</span>
+          </div>
+          <button id="reset-default-pool-btn" class="text-[11px] text-neutral-400 hover:text-amber-300 transition-colors">Reset Defaults</button>
+        </div>
+
+        <p class="text-neutral-400 text-xs">Each person on screen independently draws random roles from this collection.</p>
+
+        <!-- Pool Tags List -->
+        <div id="pool-chips-container" class="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto pr-1">
+          <!-- Dynamically populated tags -->
+        </div>
+
+        <!-- Add Custom Title to Pool -->
+        <div class="flex gap-1.5 pt-1">
+          <input type="text" id="add-pool-input" placeholder="Add title (e.g. Art Connoisseur)..." class="flex-1 bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 font-serif" />
+          <button id="add-pool-btn" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs transition-colors">Add</button>
+        </div>
+      </div>
+
+      <!-- FIXED PRIMARY TEXT (Visible when in Fixed Mode) -->
+      <div id="fixed-title-section" class="hidden">
+        <label class="block font-medium text-neutral-300 mb-1.5 text-xs uppercase font-mono-tech tracking-wider">Fixed Primary Text</label>
+        <input type="text" id="custom-text-input" value="Artlover, 2026" class="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400 font-serif" placeholder="e.g. Artlover, 2026" />
+      </div>
+
+      <!-- Suffix / Year Settings -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block font-medium text-neutral-300 mb-1 text-xs uppercase font-mono-tech tracking-wider">Year / Suffix</label>
+          <input type="text" id="year-suffix-input" value="2026" class="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono-tech" />
+        </div>
+        <div class="flex flex-col justify-end">
+          <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg bg-neutral-900/60 border border-neutral-800 text-xs text-neutral-300 hover:bg-neutral-900">
+            <input type="checkbox" id="append-year-toggle" class="w-4 h-4 accent-amber-500 rounded" checked />
+            <span>Append Suffix</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Sub-headline customization -->
+      <div>
+        <label class="block font-medium text-neutral-300 mb-1.5 text-xs uppercase font-mono-tech tracking-wider">Subtitle / Attribution</label>
+        <input type="text" id="custom-sub-input" value="Subject & Spectator • Mixed Medium" class="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400" />
+      </div>
+
+      <!-- Theme selection -->
+      <div>
+        <label class="block font-medium text-neutral-300 mb-2 text-xs uppercase font-mono-tech tracking-wider">Badge Visual Aesthetic</label>
+        <div class="grid grid-cols-2 gap-2.5">
+          <button data-theme="museum" class="theme-select-btn p-3 rounded-xl border text-left flex flex-col gap-1 transition-all bg-amber-500/10 border-amber-500/50 text-amber-200">
+            <span class="font-art font-bold text-xs">🏛️ Museum Plaque</span>
+            <span class="text-[11px] text-neutral-400">Classic ivory card & fine serif typography</span>
+          </button>
+          <button data-theme="cyberpunk" class="theme-select-btn p-3 rounded-xl border border-neutral-800 bg-neutral-900/60 text-left flex flex-col gap-1 hover:border-neutral-700 transition-all text-neutral-300">
+            <span class="font-mono-tech font-bold text-xs">⚡ Cyberpunk HUD</span>
+            <span class="text-[11px] text-neutral-400">Glowing neon cyan & laser brackets</span>
+          </button>
+          <button data-theme="hologram" class="theme-select-btn p-3 rounded-xl border border-neutral-800 bg-neutral-900/60 text-left flex flex-col gap-1 hover:border-neutral-700 transition-all text-neutral-300">
+            <span class="font-bold text-xs">🔮 Prism Hologram</span>
+            <span class="text-[11px] text-neutral-400">Frosted blur & iridescent gradient</span>
+          </button>
+          <button data-theme="minimal" class="theme-select-btn p-3 rounded-xl border border-neutral-800 bg-neutral-900/60 text-left flex flex-col gap-1 hover:border-neutral-700 transition-all text-neutral-300">
+            <span class="font-bold text-xs">🖤 Minimalist Studio</span>
+            <span class="text-[11px] text-neutral-400">Matte dark pill & stark typography</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tracking Options -->
+      <div class="space-y-3 pt-2 border-t border-neutral-800">
+        <label class="block font-medium text-neutral-300 text-xs uppercase font-mono-tech tracking-wider">Display & Tracking Options</label>
+        
+        <label class="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-neutral-900/70">
+          <span class="text-neutral-300 text-xs">Draw Face Targeting Box</span>
+          <input type="checkbox" id="show-box-toggle" class="w-4 h-4 accent-amber-500 rounded" />
+        </label>
+
+        <label class="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-neutral-900/70">
+          <span class="text-neutral-300 text-xs">Draw Crown / Anchor Pin</span>
+          <input type="checkbox" id="show-pin-toggle" class="w-4 h-4 accent-amber-500 rounded" checked />
+        </label>
+
+        <label class="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-neutral-900/70">
+          <span class="text-neutral-300 text-xs">Mirror Video Stream</span>
+          <input type="checkbox" id="mirror-toggle" class="w-4 h-4 accent-amber-500 rounded" checked />
+        </label>
+
+        <label class="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-neutral-900/70">
+          <span class="text-neutral-300 text-xs">Subtitle Visibility</span>
+          <input type="checkbox" id="show-subtitle-toggle" class="w-4 h-4 accent-amber-500 rounded" checked />
+        </label>
+      </div>
+
+      <!-- Tag Offset & Scale Sliders -->
+      <div class="space-y-3 pt-2 border-t border-neutral-800">
+        <div>
+          <div class="flex justify-between text-xs text-neutral-400 mb-1">
+            <span>Height Above Head</span>
+            <span id="offset-val" class="font-mono-tech text-amber-300">55px</span>
+          </div>
+          <input type="range" id="offset-slider" min="10" max="140" value="55" class="w-full accent-amber-500 cursor-pointer" />
+        </div>
+        <div>
+          <div class="flex justify-between text-xs text-neutral-400 mb-1">
+            <span>Badge Scale</span>
+            <span id="scale-val" class="font-mono-tech text-amber-300">1.0x</span>
+          </div>
+          <input type="range" id="scale-slider" min="0.6" max="1.6" step="0.05" value="1.0" class="w-full accent-amber-500 cursor-pointer" />
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- SNAPSHOT PREVIEW MODAL -->
+  <div id="snapshot-modal" class="fixed inset-0 bg-neutral-950/80 backdrop-blur-xl z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-panel border border-neutral-700 max-w-2xl w-full rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <h3 class="font-bold text-base text-white">Captured Exhibition Frame</h3>
+        </div>
+        <button id="close-modal-btn" class="p-1 rounded-lg text-neutral-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="p-4 bg-black/50 flex items-center justify-center">
+        <img id="snapshot-preview-img" class="max-h-[60vh] object-contain rounded-lg border border-neutral-800 shadow-lg" alt="Snapshot"/>
+      </div>
+
+      <div class="p-4 border-t border-neutral-800 flex items-center justify-between">
+        <span class="text-xs font-mono-tech text-neutral-400">EXHIBIT ARCHIVE • PNG</span>
+        <div class="flex items-center gap-2">
+          <button id="cancel-snapshot-btn" class="px-4 py-2 rounded-lg text-xs font-medium text-neutral-300 hover:bg-neutral-800">Close</button>
+          <a id="download-snapshot-btn" download="artlover_2026_exhibit.png" class="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-rose-500 text-black font-bold text-xs hover:brightness-110 flex items-center gap-1.5 shadow-md">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Download Artwork
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // Initial Default Title Pool
+    const DEFAULT_TITLE_POOL = [
+      "Art Lover",
+      "Art Enthusiast",
+      "Art Appreciator",
+      "Artist at Work",
+      "Art Collector",
+      "Art Gallerist",
+      "Art Educator",
+      "Art Director",
+      "Artist in Residence",
+      "Art Connoisseur",
+      "Art Critic",
+      "Art Historian",
+      "Gallery Curator",
+      "Living Masterpiece"
+    ];
+
+    // State configuration
+    const config = {
+      isPoolMode: true, // true = dynamic assignment from pool, false = fixed primaryText
+      titlePool: [...DEFAULT_TITLE_POOL],
+      autoShuffle: true,
+      minShuffleSec: 20, // 20 seconds minimum
+      maxShuffleSec: 30, // 30 seconds maximum
+      primaryText: "Artlover, 2026",
+      appendYear: true,
+      yearSuffix: "2026",
+      subtitleText: "Subject & Spectator • Live Archive",
+      theme: "museum", // museum, cyberpunk, hologram, minimal
+      showBox: false, // Off by default
+      showPin: true,
+      showSubtitle: true,
+      mirror: true,
+      offsetY: 55,
+      scale: 1.0,
+      isPaused: false,
+      isZenFullscreen: false
+    };
+
+    // DOM Elements
+    const video = document.getElementById('webcam-video');
+    const canvas = document.getElementById('ar-canvas');
+    const ctx = canvas.getContext('2d');
+    const mainContainer = document.getElementById('main-container');
+    const canvasCard = document.getElementById('canvas-card');
+    const mainHeader = document.getElementById('main-header');
+    const zenToast = document.getElementById('zen-toast');
+    const zenModeBtn = document.getElementById('zen-mode-btn');
+    const uiElements = document.querySelectorAll('.ui-element');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    const retryCamBtn = document.getElementById('retry-cam-btn');
+    const faceCountEl = document.getElementById('face-count');
+    const fpsCounter = document.getElementById('fps-counter');
+    const toggleCamBtn = document.getElementById('toggle-camera-btn');
+    const camBtnText = document.getElementById('cam-btn-text');
+    const flipBtn = document.getElementById('flip-btn');
+    const snapshotBtn = document.getElementById('snapshot-btn');
+    const settingsToggleBtn = document.getElementById('settings-toggle-btn');
+    const settingsPanel = document.getElementById('settings-panel');
+    const closeSettingsBtn = document.getElementById('close-settings-btn');
+    const customTextInput = document.getElementById('custom-text-input');
+    const customSubInput = document.getElementById('custom-sub-input');
+    const yearSuffixInput = document.getElementById('year-suffix-input');
+    const appendYearToggle = document.getElementById('append-year-toggle');
+    const hudThemeText = document.getElementById('hud-theme-text');
+    const hudModeText = document.getElementById('hud-mode-text');
+    const hudPoolCount = document.getElementById('hud-pool-count');
+    const shuffleNotice = document.getElementById('shuffle-notice');
+    const shuffleNoticeText = document.getElementById('shuffle-notice-text');
+    const autoShuffleToggle = document.getElementById('auto-shuffle-toggle');
+    const showBoxToggle = document.getElementById('show-box-toggle');
+    const showPinToggle = document.getElementById('show-pin-toggle');
+    const mirrorToggle = document.getElementById('mirror-toggle');
+    const showSubtitleToggle = document.getElementById('show-subtitle-toggle');
+    const offsetSlider = document.getElementById('offset-slider');
+    const offsetVal = document.getElementById('offset-val');
+    const scaleSlider = document.getElementById('scale-slider');
+    const scaleVal = document.getElementById('scale-val');
+    const snapshotModal = document.getElementById('snapshot-modal');
+    const snapshotPreviewImg = document.getElementById('snapshot-preview-img');
+    const downloadSnapshotBtn = document.getElementById('download-snapshot-btn');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const cancelSnapshotBtn = document.getElementById('cancel-snapshot-btn');
+    const modePoolBtn = document.getElementById('mode-pool-btn');
+    const modeFixedBtn = document.getElementById('mode-fixed-btn');
+    const poolManagerSection = document.getElementById('pool-manager-section');
+    const fixedTitleSection = document.getElementById('fixed-title-section');
+    const poolChipsContainer = document.getElementById('pool-chips-container');
+    const poolBadgeCount = document.getElementById('pool-badge-count');
+    const addPoolInput = document.getElementById('add-pool-input');
+    const addPoolBtn = document.getElementById('add-pool-btn');
+    const resetDefaultPoolBtn = document.getElementById('reset-default-pool-btn');
+    const shufflePoolBtn = document.getElementById('shuffle-pool-btn');
+
+    // Smoothing & Tracking data store
+    let activeFaces = [];
+    let nextFaceId = 1;
+    let lastFrameTime = performance.now();
+    let frameCount = 0;
+    let currentFps = 60;
+    let cameraInstance = null;
+    let faceDetector = null;
+    let toastTimeout = null;
+    let noticeTimeout = null;
+
+    // Helper: generate random switch duration between 20s and 30s (in ms)
+    function getRandomSwitchIntervalMs() {
+      const min = config.minShuffleSec;
+      const max = config.maxShuffleSec;
+      const sec = Math.floor(Math.random() * (max - min + 1)) + min;
+      return sec * 1000;
+    }
+
+    // Helper: pick a random title from pool different from current
+    function getRandomPoolTitle(excludeTitle = "") {
+      const available = config.titlePool.filter(t => t !== excludeTitle);
+      if (available.length > 0) {
+        return available[Math.floor(Math.random() * available.length)];
+      }
+      return config.titlePool[Math.floor(Math.random() * config.titlePool.length)] || "Art Lover";
+    }
+
+    // Trigger visual notification when a role shuffles
+    function triggerShuffleNotice(title) {
+      shuffleNoticeText.textContent = `New Designation: ${title}`;
+      shuffleNotice.classList.remove('opacity-0', '-translate-y-2');
+      shuffleNotice.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(noticeTimeout);
+      noticeTimeout = setTimeout(() => {
+        shuffleNotice.classList.remove('opacity-100', 'translate-y-0');
+        shuffleNotice.classList.add('opacity-0', '-translate-y-2');
+      }, 2600);
+    }
+
+    // Render Title Pool Chips
+    function renderPoolChips() {
+      poolChipsContainer.innerHTML = '';
+      poolBadgeCount.textContent = config.titlePool.length;
+      hudPoolCount.textContent = `${config.titlePool.length} titles in pool`;
+
+      config.titlePool.forEach((title, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-950 border border-neutral-800 text-xs text-neutral-300 font-serif group hover:border-amber-500/50 transition-colors';
+        chip.innerHTML = `
+          <span>${title}</span>
+          <button data-index="${index}" class="remove-pool-item text-neutral-500 hover:text-rose-400 p-0.5 rounded transition-colors" title="Remove title">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        `;
+        poolChipsContainer.appendChild(chip);
+      });
+
+      // Attach remove handlers
+      poolChipsContainer.querySelectorAll('.remove-pool-item').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.index);
+          if (config.titlePool.length > 1) {
+            config.titlePool.splice(idx, 1);
+            renderPoolChips();
+            reassignActiveFaceTitles();
+          }
+        });
+      });
+    }
+
+    // Add New Title to Pool
+    function addTitleToPool() {
+      const val = addPoolInput.value.trim();
+      if (val && !config.titlePool.includes(val)) {
+        config.titlePool.push(val);
+        addPoolInput.value = '';
+        renderPoolChips();
+      }
+    }
+
+    addPoolBtn.addEventListener('click', addTitleToPool);
+    addPoolInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addTitleToPool();
+    });
+
+    resetDefaultPoolBtn.addEventListener('click', () => {
+      config.titlePool = [...DEFAULT_TITLE_POOL];
+      renderPoolChips();
+      reassignActiveFaceTitles();
+    });
+
+    // Manually randomize all titles with full dramatic sequence
+    function shuffleAllPoolTitles() {
+      const now = performance.now();
+      activeFaces.forEach((f) => {
+        f.assignedTitle = getRandomPoolTitle(f.assignedTitle);
+        f.nextSwitchTime = now + getRandomSwitchIntervalMs();
+        f.lastTransitionTime = now;
+      });
+      triggerShuffleNotice("All Active Roles");
+    }
+
+    shufflePoolBtn.addEventListener('click', shuffleAllPoolTitles);
+
+    // Reassign titles based on updated pool
+    function reassignActiveFaceTitles() {
+      const now = performance.now();
+      activeFaces.forEach((f) => {
+        if (!config.titlePool.includes(f.assignedTitle)) {
+          f.assignedTitle = getRandomPoolTitle();
+          f.nextSwitchTime = now + getRandomSwitchIntervalMs();
+          f.lastTransitionTime = now;
+        }
+      });
+    }
+
+    // Mode Switching Logic
+    function setTitleMode(isPool) {
+      config.isPoolMode = isPool;
+      if (isPool) {
+        modePoolBtn.classList.add('border-amber-500/50', 'bg-amber-500/10', 'text-amber-200');
+        modePoolBtn.classList.remove('border-neutral-800', 'bg-neutral-900/60', 'text-neutral-300');
+        modeFixedBtn.classList.remove('border-amber-500/50', 'bg-amber-500/10', 'text-amber-200');
+        modeFixedBtn.classList.add('border-neutral-800', 'bg-neutral-900/60', 'text-neutral-300');
+        poolManagerSection.classList.remove('hidden');
+        fixedTitleSection.classList.add('hidden');
+        hudModeText.textContent = "DRAMATIC FX (20s - 30s)";
+      } else {
+        modeFixedBtn.classList.add('border-amber-500/50', 'bg-amber-500/10', 'text-amber-200');
+        modeFixedBtn.classList.remove('border-neutral-800', 'bg-neutral-900/60', 'text-neutral-300');
+        modePoolBtn.classList.remove('border-amber-500/50', 'bg-amber-500/10', 'text-amber-200');
+        modePoolBtn.classList.add('border-neutral-800', 'bg-neutral-900/60', 'text-neutral-300');
+        poolManagerSection.classList.add('hidden');
+        fixedTitleSection.classList.remove('hidden');
+        hudModeText.textContent = "FIXED SINGLE";
+      }
+    }
+
+    modePoolBtn.addEventListener('click', () => setTitleMode(true));
+    modeFixedBtn.addEventListener('click', () => setTitleMode(false));
+
+    // Auto-Shuffle controls in settings
+    autoShuffleToggle.addEventListener('change', (e) => {
+      config.autoShuffle = e.target.checked;
+      hudModeText.textContent = config.autoShuffle ? "DRAMATIC FX (20s - 30s)" : "MANUAL POOL";
+    });
+
+    // Toggle Clean Fullscreen Exhibit Mode
+    function toggleZenFullscreen(forceState = null) {
+      const nextState = forceState !== null ? forceState : !config.isZenFullscreen;
+      config.isZenFullscreen = nextState;
+
+      settingsPanel.classList.add('translate-x-full');
+
+      if (config.isZenFullscreen) {
+        uiElements.forEach(el => el.classList.add('zen-hidden'));
+        mainHeader.classList.add('hidden');
+        
+        mainContainer.classList.remove('p-2', 'sm:p-4');
+        mainContainer.classList.add('p-0', 'fixed', 'inset-0', 'z-50', 'bg-black');
+        canvasCard.classList.remove('rounded-2xl', 'border', 'max-w-6xl', 'aspect-[4/3]', 'sm:aspect-video');
+        canvasCard.classList.add('w-screen', 'h-screen', 'rounded-none', 'border-0');
+
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+
+        zenToast.classList.remove('opacity-0');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          zenToast.classList.add('opacity-0');
+        }, 3200);
+
+      } else {
+        uiElements.forEach(el => el.classList.remove('zen-hidden'));
+        mainHeader.classList.remove('hidden');
+
+        mainContainer.classList.add('p-2', 'sm:p-4');
+        mainContainer.classList.remove('p-0', 'fixed', 'inset-0', 'z-50');
+        canvasCard.classList.add('rounded-2xl', 'border', 'max-w-6xl', 'aspect-[4/3]', 'sm:aspect-video');
+        canvasCard.classList.remove('w-screen', 'h-screen', 'rounded-none', 'border-0');
+
+        zenToast.classList.add('opacity-0');
+
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    }
+
+    // Global Keydown Listener for 'S' Hotkey
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName : '';
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) {
+        return;
+      }
+
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        toggleZenFullscreen();
+      } else if (e.key === 'Escape' && config.isZenFullscreen) {
+        toggleZenFullscreen(false);
+      }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && config.isZenFullscreen) {
+        toggleZenFullscreen(false);
+      }
+    });
+
+    zenModeBtn.addEventListener('click', () => toggleZenFullscreen());
+
+    // Initialize MediaPipe Face Detection
+    function initFaceDetection() {
+      loadingText.textContent = "Loading MediaPipe neural model...";
+      
+      try {
+        faceDetector = new FaceDetection({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+        });
+
+        faceDetector.setOptions({
+          model: 'short',
+          minDetectionConfidence: 0.55
+        });
+
+        faceDetector.onResults(onResults);
+        startCamera();
+      } catch (err) {
+        console.error("Initialization error:", err);
+        showCameraError("Failed to load Face Detection model. Please check network connectivity.");
+      }
+    }
+
+    // Start Camera stream
+    function startCamera() {
+      loadingText.textContent = "Requesting webcam stream...";
+      retryCamBtn.classList.add('hidden');
+
+      navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user"
+        },
+        audio: false
+      }).then((stream) => {
+        video.srcObject = stream;
+        video.play().catch(e => console.log("Play error handled:", e));
+
+        video.onloadedmetadata = () => {
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          loadingOverlay.classList.add('hidden');
+
+          if (cameraInstance) {
+            try { cameraInstance.stop(); } catch (e) {}
+          }
+
+          cameraInstance = new Camera(video, {
+            onFrame: async () => {
+              if (!config.isPaused && video.readyState >= 2 && faceDetector) {
+                try {
+                  await faceDetector.send({ image: video });
+                } catch (err) {
+                  console.error("Face detection send error:", err);
+                }
+              }
+            },
+            width: video.videoWidth || 1280,
+            height: video.videoHeight || 720
+          });
+          cameraInstance.start().catch(err => console.error("Camera start error:", err));
+        };
+      }).catch((err) => {
+        console.error("Webcam access error:", err);
+        showCameraError("Camera permission denied or camera not found. Please enable camera access.");
+      });
+    }
+
+    function showCameraError(message) {
+      loadingOverlay.classList.remove('hidden');
+      loadingText.textContent = message;
+      retryCamBtn.classList.remove('hidden');
+    }
+
+    retryCamBtn.addEventListener('click', () => {
+      startCamera();
+    });
+
+    // FPS Counter Calculation
+    function updateFPS() {
+      const now = performance.now();
+      const delta = (now - lastFrameTime) / 1000;
+      frameCount++;
+      if (delta >= 0.5) {
+        currentFps = Math.round((frameCount / delta));
+        fpsCounter.textContent = currentFps;
+        frameCount = 0;
+        lastFrameTime = now;
+      }
+    }
+
+    // MediaPipe Results Callback
+    function onResults(results) {
+      updateFPS();
+      const width = canvas.width;
+      const height = canvas.height;
+      const now = performance.now();
+
+      // Clear Canvas
+      ctx.save();
+      ctx.clearRect(0, 0, width, height);
+
+      // Render Video Frame (handling mirror mode)
+      if (config.mirror) {
+        ctx.translate(width, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(results.image, 0, 0, width, height);
+      ctx.restore();
+
+      const detections = results.detections || [];
+      faceCountEl.textContent = detections.length;
+
+      // Extract bounding boxes
+      const currentDetections = detections.map(det => {
+        let bx = 0, by = 0, bw = 0, bh = 0;
+
+        if (det.boundingBox) {
+          const b = det.boundingBox;
+          if (typeof b.xCenter === 'number' && typeof b.yCenter === 'number') {
+            bw = b.width || 0;
+            bh = b.height || 0;
+            bx = b.xCenter - bw / 2;
+            by = b.yCenter - bh / 2;
+          } else if (typeof b.xMin === 'number' && typeof b.yMin === 'number') {
+            bx = b.xMin;
+            by = b.yMin;
+            bw = b.width || 0;
+            bh = b.height || 0;
+          } else if (typeof b.x === 'number' && typeof b.y === 'number') {
+            bx = b.x;
+            by = b.y;
+            bw = b.width || 0;
+            bh = b.height || 0;
+          }
+        } else if (det.locationData && det.locationData.relativeBoundingBox) {
+          const b = det.locationData.relativeBoundingBox;
+          bw = b.width || 0;
+          bh = b.height || 0;
+          bx = b.xMin !== undefined ? b.xMin : (b.x !== undefined ? b.x : ((b.xCenter || 0) - bw / 2));
+          by = b.yMin !== undefined ? b.yMin : (b.y !== undefined ? b.y : ((b.yCenter || 0) - bh / 2));
+        }
+
+        let px = bx * width;
+        let py = by * height;
+        let pw = bw * width;
+        let ph = bh * height;
+
+        if (config.mirror) {
+          px = width - (px + pw);
+        }
+
+        return {
+          x: px,
+          y: py,
+          w: pw,
+          h: ph,
+          topCenterX: px + pw / 2,
+          topCenterY: py,
+          confidence: det.score ? det.score[0] : 1
+        };
+      }).filter(face => !isNaN(face.x) && !isNaN(face.y) && face.w > 0 && face.h > 0);
+
+      currentDetections.sort((a, b) => a.topCenterX - b.topCenterX);
+
+      // Lerping & Stable Identity matching + Per-face dramatic random timer checks
+      smoothFaceCoordinates(currentDetections, now);
+
+      // Render badges and overlays for each tracked face
+      activeFaces.forEach((face, idx) => {
+        drawFaceBadge(ctx, face, idx, now);
+      });
+    }
+
+    // Stable tracking & Linear Interpolation for jitter-free positioning
+    function smoothFaceCoordinates(newFaces, now) {
+      const LERP_FACTOR = 0.38;
+
+      if (!activeFaces.length) {
+        activeFaces = newFaces.map((f) => {
+          const title = getRandomPoolTitle();
+          return {
+            ...f,
+            id: nextFaceId++,
+            assignedTitle: title,
+            nextSwitchTime: now + getRandomSwitchIntervalMs(),
+            lastTransitionTime: now
+          };
+        });
+        return;
+      }
+
+      const matchedOld = new Set();
+      const nextActive = [];
+
+      newFaces.forEach((newF) => {
+        let closest = null;
+        let minDist = Infinity;
+        let closestIdx = -1;
+
+        activeFaces.forEach((oldF, idx) => {
+          if (matchedOld.has(idx)) return;
+          const dist = Math.hypot(oldF.topCenterX - newF.topCenterX, oldF.topCenterY - newF.topCenterY);
+          if (dist < minDist) {
+            minDist = dist;
+            closest = oldF;
+            closestIdx = idx;
+          }
+        });
+
+        if (closest && minDist < 180) {
+          matchedOld.add(closestIdx);
+
+          let currentTitle = closest.assignedTitle;
+          let nextSwitch = closest.nextSwitchTime || (now + getRandomSwitchIntervalMs());
+          let lastTransition = closest.lastTransitionTime || now;
+
+          // Check if this individual face reached its random switchover deadline
+          if (config.isPoolMode && config.autoShuffle && !config.isPaused) {
+            if (now >= nextSwitch) {
+              currentTitle = getRandomPoolTitle(currentTitle);
+              nextSwitch = now + getRandomSwitchIntervalMs(); // Schedule next random 20s-30s rotation
+              lastTransition = now; // Trigger dramatic typewriter & shine sequence
+              triggerShuffleNotice(currentTitle);
+            }
+          }
+
+          nextActive.push({
+            id: closest.id,
+            assignedTitle: currentTitle,
+            nextSwitchTime: nextSwitch,
+            lastTransitionTime: lastTransition,
+            x: closest.x + (newF.x - closest.x) * LERP_FACTOR,
+            y: closest.y + (newF.y - closest.y) * LERP_FACTOR,
+            w: closest.w + (newF.w - closest.w) * LERP_FACTOR,
+            h: closest.h + (newF.h - closest.h) * LERP_FACTOR,
+            topCenterX: closest.topCenterX + (newF.topCenterX - closest.topCenterX) * LERP_FACTOR,
+            topCenterY: closest.topCenterY + (newF.topCenterY - closest.topCenterY) * LERP_FACTOR,
+            confidence: newF.confidence
+          });
+        } else {
+          // New Face entering camera view
+          const title = getRandomPoolTitle();
+          nextActive.push({
+            ...newF,
+            id: nextFaceId++,
+            assignedTitle: title,
+            nextSwitchTime: now + getRandomSwitchIntervalMs(),
+            lastTransitionTime: now
+          });
+        }
+      });
+
+      activeFaces = nextActive;
+    }
+
+    // Custom Rounded Rectangle Helper with safety checks
+    function drawCustomRoundRect(ctx, x, y, width, height, radius) {
+      let r = typeof radius === 'number' ? { tl: radius, tr: radius, br: radius, bl: radius } : radius;
+      r = {
+        tl: Math.min(r.tl || 0, width / 2, height / 2),
+        tr: Math.min(r.tr || 0, width / 2, height / 2),
+        br: Math.min(r.br || 0, width / 2, height / 2),
+        bl: Math.min(r.bl || 0, width / 2, height / 2)
+      };
+      ctx.beginPath();
+      ctx.moveTo(x + r.tl, y);
+      ctx.lineTo(x + width - r.tr, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r.tr);
+      ctx.lineTo(x + width, y + height - r.br);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r.br, y + height);
+      ctx.lineTo(x + r.bl, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r.bl);
+      ctx.lineTo(x, y + r.tl);
+      ctx.quadraticCurveTo(x, y, x + r.tl, y);
+      ctx.closePath();
+    }
+
+    // Get Resolved Primary Title for a specific face
+    function getResolvedTitle(face, index) {
+      let base = "";
+      if (config.isPoolMode) {
+        base = face.assignedTitle || config.titlePool[index % config.titlePool.length] || "Art Lover";
+        if (config.appendYear && config.yearSuffix.trim()) {
+          return `${base}, ${config.yearSuffix.trim()}`;
+        }
+        return base;
+      } else {
+        return config.primaryText || "Artlover, 2026";
+      }
+    }
+
+    // Draw Diagonal Sweep Light Shine Effect
+    function drawShineBeam(ctx, x, y, width, height, shineProgress) {
+      if (shineProgress <= 0 || shineProgress >= 1) return;
+
+      ctx.save();
+      // Clip shine beam strictly within the badge boundary
+      drawCustomRoundRect(ctx, x, y, width, height, 8);
+      ctx.clip();
+
+      const beamX = x - width + (width * 3 * shineProgress);
+      const beamWidth = width * 0.45;
+
+      const shineGrad = ctx.createLinearGradient(beamX - beamWidth, y, beamX + beamWidth, y + height);
+      shineGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      shineGrad.addColorStop(0.35, 'rgba(255, 255, 255, 0.15)');
+      shineGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.85)'); // Bright specular core
+      shineGrad.addColorStop(0.65, 'rgba(255, 255, 255, 0.15)');
+      shineGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+      ctx.fillStyle = shineGrad;
+      ctx.fillRect(x - 5, y - 5, width + 10, height + 10);
+      ctx.restore();
+    }
+
+    // Draw the "Artlover, 2026" / Pool AR Badge over a face with Dramatic Effects
+    function drawFaceBadge(ctx, face, index, now) {
+      if (!face || isNaN(face.topCenterX) || isNaN(face.topCenterY)) return;
+
+      const centerX = Number(face.topCenterX) || 0;
+      const headY = Number(face.topCenterY) || 0;
+      const baseScale = Math.max(0.2, Number(config.scale) || 1.0);
+      const fullTitle = getResolvedTitle(face, index);
+
+      // ==========================================
+      // DRAMATIC TRANSITION ANIMATION CALCULATIONS
+      // ==========================================
+      const elapsedSinceTransition = now - (face.lastTransitionTime || 0);
+      const DRAMA_TOTAL_DURATION = 1400; // 1.4s total showcase sequence
+      const isTransitioning = elapsedSinceTransition < DRAMA_TOTAL_DURATION;
+
+      let scaleMultiplier = 1.0;
+      let shineProgress = -1;
+      let visibleTitle = fullTitle;
+      let showCursor = false;
+      let glowIntensity = 0;
+
+      if (isTransitioning) {
+        const progress = Math.min(1.0, elapsedSinceTransition / DRAMA_TOTAL_DURATION);
+
+        // 1. Dramatic Elastic Scale Surge: Badge pops up to ~1.28x then smoothly settles
+        if (progress < 0.25) {
+          const t = progress / 0.25;
+          scaleMultiplier = 1.0 + Math.sin(t * Math.PI * 0.5) * 0.28; // Pop up
+        } else if (progress < 0.65) {
+          const t = (progress - 0.25) / 0.40;
+          scaleMultiplier = 1.28 - (t * 0.22); // Ease down
+        } else {
+          const t = (progress - 0.65) / 0.35;
+          scaleMultiplier = 1.06 - (t * 0.06); // Settle to 1.0x
+        }
+
+        // 2. Light Sweep Shine Flare: travels across badge from t=0.10 to t=0.75
+        if (progress >= 0.10 && progress <= 0.85) {
+          shineProgress = (progress - 0.10) / 0.75;
+        }
+
+        // 3. Radiant Aura Glow intensity
+        glowIntensity = Math.sin(progress * Math.PI);
+
+        // 4. Typewriter Character Reveal
+        // Types from t=0.15 to t=0.85
+        if (progress < 0.15) {
+          visibleTitle = "";
+          showCursor = true;
+        } else if (progress < 0.85) {
+          const typeT = (progress - 0.15) / 0.70;
+          const charsCount = Math.max(1, Math.floor(typeT * fullTitle.length));
+          visibleTitle = fullTitle.substring(0, charsCount);
+          // Blinking typewriter cursor indicator
+          showCursor = Math.floor(now / 110) % 2 === 0;
+        } else {
+          visibleTitle = fullTitle;
+          showCursor = (progress < 0.95) && (Math.floor(now / 110) % 2 === 0);
+        }
+      }
+
+      const effectiveScale = baseScale * scaleMultiplier;
+      const targetY = headY - ((Number(config.offsetY) || 55) * baseScale);
+
+      ctx.save();
+
+      // Draw Dramatic Radiant Background Halo during switchover
+      if (isTransitioning && glowIntensity > 0.05) {
+        ctx.save();
+        const auraRadius = (140 * effectiveScale);
+        const auraGrad = ctx.createRadialGradient(centerX, targetY, 10, centerX, targetY, auraRadius);
+        const auraColor = config.theme === 'cyberpunk' ? '6, 182, 212' :
+                          config.theme === 'hologram' ? '236, 72, 153' :
+                          '245, 158, 11';
+        auraGrad.addColorStop(0, `rgba(${auraColor}, ${0.45 * glowIntensity})`);
+        auraGrad.addColorStop(0.5, `rgba(${auraColor}, ${0.18 * glowIntensity})`);
+        auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = auraGrad;
+        ctx.beginPath();
+        ctx.arc(centerX, targetY, auraRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // 1. Optional Bounding Box around the face
+      if (config.showBox) {
+        drawFaceBoundingBox(ctx, face);
+      }
+
+      // 2. Connecting Anchor Pin / Stem from badge to head
+      if (config.showPin) {
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(centerX, headY - 4);
+        ctx.lineTo(centerX, targetY + (12 * effectiveScale));
+        ctx.strokeStyle = config.theme === 'cyberpunk' ? 'rgba(6, 182, 212, 0.6)' :
+                          config.theme === 'museum' ? 'rgba(217, 119, 6, 0.6)' :
+                          'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Anchor diamond / dot on the crown of the head
+        ctx.beginPath();
+        ctx.arc(centerX, headY - 3, 3 + (isTransitioning ? glowIntensity * 2 : 0), 0, Math.PI * 2);
+        ctx.fillStyle = config.theme === 'cyberpunk' ? '#06b6d4' : '#f59e0b';
+        ctx.fill();
+      }
+
+      // 3. Render the specific styled Badge with dramatic text & shine
+      const textToDisplay = visibleTitle + (showCursor ? "▏" : "");
+
+      switch (config.theme) {
+        case 'museum':
+          drawMuseumPlaque(ctx, centerX, targetY, effectiveScale, index, textToDisplay, fullTitle, shineProgress, isTransitioning);
+          break;
+        case 'cyberpunk':
+          drawCyberpunkHUD(ctx, centerX, targetY, effectiveScale, index, textToDisplay, fullTitle, shineProgress, isTransitioning);
+          break;
+        case 'hologram':
+          drawHologramPill(ctx, centerX, targetY, effectiveScale, index, textToDisplay, fullTitle, shineProgress, isTransitioning);
+          break;
+        case 'minimal':
+          drawMinimalistTag(ctx, centerX, targetY, effectiveScale, index, textToDisplay, fullTitle, shineProgress, isTransitioning);
+          break;
+      }
+
+      ctx.restore();
+    }
+
+    // THEME 1: Fine Art Museum Gallery Plaque
+    function drawMuseumPlaque(ctx, cx, cy, scale, idx, title, fullTitle, shineProgress, isTransitioning) {
+      const subtitle = config.subtitleText || "Subject & Spectator";
+      
+      // Calculate badge dimensions based on full title length to prevent box jitter while typing
+      ctx.font = `bold ${Math.round(14 * scale)}px 'Cinzel', serif`;
+      const textMetrics = ctx.measureText(fullTitle || title);
+      const badgeW = Math.max(220 * scale, textMetrics.width + (60 * scale));
+      const badgeH = (config.showSubtitle ? 56 : 40) * scale;
+      const x = cx - badgeW / 2;
+      const y = cy - badgeH / 2;
+
+      // Glow / Shadow
+      ctx.shadowColor = isTransitioning ? 'rgba(217, 119, 6, 0.85)' : 'rgba(0, 0, 0, 0.6)';
+      ctx.shadowBlur = (isTransitioning ? 28 : 16) * scale;
+      ctx.shadowOffsetY = 6 * scale;
+
+      // Ivory / Fine Paper Background
+      const bgGrad = ctx.createLinearGradient(x, y, x, y + badgeH);
+      bgGrad.addColorStop(0, '#fbfaf6');
+      bgGrad.addColorStop(1, '#f1ede2');
+      ctx.fillStyle = bgGrad;
+      drawCustomRoundRect(ctx, x, y, badgeW, badgeH, 6 * scale);
+      ctx.fill();
+
+      // Reset shadow for borders & text
+      ctx.shadowColor = 'transparent';
+
+      // Gold Trim Inner Border (Pulses brighter during transition)
+      ctx.strokeStyle = isTransitioning ? '#f59e0b' : '#c5a059';
+      ctx.lineWidth = (isTransitioning ? 2.5 : 1.5) * scale;
+      drawCustomRoundRect(ctx, x + 3 * scale, y + 3 * scale, badgeW - 6 * scale, badgeH - 6 * scale, 4 * scale);
+      ctx.stroke();
+
+      // Gold Accent Dot / Museum Seal icon on the left
+      const dotX = x + 16 * scale;
+      const dotY = y + (config.showSubtitle ? 22 : 20) * scale;
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, (isTransitioning ? 5.5 : 4.5) * scale, 0, Math.PI * 2);
+      ctx.fillStyle = isTransitioning ? '#d97706' : '#b45309';
+      ctx.fill();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1 * scale;
+      ctx.stroke();
+
+      // Typewritten Title text
+      ctx.fillStyle = '#1c1917';
+      ctx.font = `bold ${Math.round(14 * scale)}px 'Cinzel', serif`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(title, dotX + 10 * scale, dotY - (config.showSubtitle ? 4 * scale : 0));
+
+      // Subtitle / Medium attribution
+      if (config.showSubtitle) {
+        ctx.fillStyle = '#78716c';
+        ctx.font = `italic 500 ${Math.round(9.5 * scale)}px 'Outfit', sans-serif`;
+        ctx.fillText(subtitle, dotX + 10 * scale, dotY + 13 * scale);
+      }
+
+      // Dramatic Light Sweep Shine Overlay
+      if (shineProgress >= 0) {
+        drawShineBeam(ctx, x, y, badgeW, badgeH, shineProgress);
+      }
+    }
+
+    // THEME 2: Cyberpunk AR HUD
+    function drawCyberpunkHUD(ctx, cx, cy, scale, idx, title, fullTitle, shineProgress, isTransitioning) {
+      const subtitle = config.subtitleText || "NEURAL_TARGET // LIVE";
+      
+      ctx.font = `700 ${Math.round(13 * scale)}px 'Space Grotesk', monospace`;
+      const textMetrics = ctx.measureText((fullTitle || title).toUpperCase());
+      const badgeW = Math.max(220 * scale, textMetrics.width + (50 * scale));
+      const badgeH = (config.showSubtitle ? 52 : 36) * scale;
+      const x = cx - badgeW / 2;
+      const y = cy - badgeH / 2;
+
+      // Glow effect
+      ctx.shadowColor = isTransitioning ? 'rgba(6, 182, 212, 1.0)' : 'rgba(6, 182, 212, 0.75)';
+      ctx.shadowBlur = (isTransitioning ? 26 : 14) * scale;
+
+      // Dark Tech Background with Corner Clip
+      ctx.fillStyle = 'rgba(10, 15, 26, 0.92)';
+      ctx.strokeStyle = isTransitioning ? '#38bdf8' : '#06b6d4';
+      ctx.lineWidth = (isTransitioning ? 2.5 : 1.5) * scale;
+
+      ctx.beginPath();
+      const cut = 8 * scale;
+      ctx.moveTo(x + cut, y);
+      ctx.lineTo(x + badgeW, y);
+      ctx.lineTo(x + badgeW, y + badgeH - cut);
+      ctx.lineTo(x + badgeW - cut, y + badgeH);
+      ctx.lineTo(x, y + badgeH);
+      ctx.lineTo(x, y + cut);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.shadowColor = 'transparent';
+
+      // Cyan scan edge
+      ctx.fillStyle = isTransitioning ? '#38bdf8' : '#06b6d4';
+      ctx.fillRect(x, y, 4 * scale, badgeH);
+
+      // Cyan Top bar indicator
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+      ctx.fillRect(x + 4 * scale, y + 1, badgeW - 6 * scale, 4 * scale);
+
+      // Title text
+      ctx.fillStyle = '#f0fdf4';
+      ctx.font = `700 ${Math.round(13 * scale)}px 'Space Grotesk', monospace`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(title.toUpperCase(), x + 14 * scale, y + (config.showSubtitle ? 18 * scale : badgeH / 2));
+
+      // Subtitle
+      if (config.showSubtitle) {
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = `600 ${Math.round(9 * scale)}px 'Space Grotesk', monospace`;
+        ctx.fillText(`ID#${idx + 1} » ${subtitle}`, x + 14 * scale, y + 34 * scale);
+      }
+
+      // Tech bracket accents
+      ctx.strokeStyle = isTransitioning ? '#fb7185' : '#f43f5e';
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      ctx.moveTo(x + badgeW - 12 * scale, y + 4 * scale);
+      ctx.lineTo(x + badgeW - 3 * scale, y + 4 * scale);
+      ctx.lineTo(x + badgeW - 3 * scale, y + 13 * scale);
+      ctx.stroke();
+
+      // Dramatic Light Sweep Shine Overlay
+      if (shineProgress >= 0) {
+        drawShineBeam(ctx, x, y, badgeW, badgeH, shineProgress);
+      }
+    }
+
+    // THEME 3: Prism Hologram
+    function drawHologramPill(ctx, cx, cy, scale, idx, title, fullTitle, shineProgress, isTransitioning) {
+      const subtitle = config.subtitleText || "Interactive Hologram";
+      
+      ctx.font = `700 ${Math.round(13 * scale)}px 'Outfit', sans-serif`;
+      const textMetrics = ctx.measureText(fullTitle || title);
+      const badgeW = Math.max(210 * scale, textMetrics.width + (55 * scale));
+      const badgeH = (config.showSubtitle ? 50 : 38) * scale;
+      const x = cx - badgeW / 2;
+      const y = cy - badgeH / 2;
+
+      // Soft purple/pink glow
+      ctx.shadowColor = isTransitioning ? 'rgba(244, 114, 182, 0.95)' : 'rgba(236, 72, 153, 0.5)';
+      ctx.shadowBlur = (isTransitioning ? 28 : 18) * scale;
+
+      // Iridescent glass background
+      const grad = ctx.createLinearGradient(x, y, x + badgeW, y + badgeH);
+      grad.addColorStop(0, 'rgba(30, 27, 75, 0.88)');
+      grad.addColorStop(0.5, 'rgba(88, 28, 135, 0.82)');
+      grad.addColorStop(1, 'rgba(190, 24, 93, 0.88)');
+      ctx.fillStyle = grad;
+      drawCustomRoundRect(ctx, x, y, badgeW, badgeH, 14 * scale);
+      ctx.fill();
+
+      // Border with gradient
+      ctx.strokeStyle = isTransitioning ? 'rgba(251, 207, 232, 0.9)' : 'rgba(244, 114, 182, 0.6)';
+      ctx.lineWidth = (isTransitioning ? 2.5 : 1.5) * scale;
+      ctx.stroke();
+
+      ctx.shadowColor = 'transparent';
+
+      // Sparkle Icon
+      ctx.fillStyle = '#fbcfe8';
+      ctx.font = `${Math.round((isTransitioning ? 15 : 12) * scale)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✦', x + 16 * scale, y + (config.showSubtitle ? 20 * scale : badgeH / 2));
+
+      // Title Text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `700 ${Math.round(13 * scale)}px 'Outfit', sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText(title, x + 28 * scale, y + (config.showSubtitle ? 18 * scale : badgeH / 2));
+
+      // Subtitle
+      if (config.showSubtitle) {
+        ctx.fillStyle = '#f472b6';
+        ctx.font = `500 ${Math.round(9.5 * scale)}px 'Outfit', sans-serif`;
+        ctx.fillText(subtitle, x + 28 * scale, y + 33 * scale);
+      }
+
+      // Dramatic Light Sweep Shine Overlay
+      if (shineProgress >= 0) {
+        drawShineBeam(ctx, x, y, badgeW, badgeH, shineProgress);
+      }
+    }
+
+    // THEME 4: Minimalist Studio Tag
+    function drawMinimalistTag(ctx, cx, cy, scale, idx, title, fullTitle, shineProgress, isTransitioning) {
+      const subtitle = config.subtitleText || "Archived Exhibition";
+      
+      ctx.font = `700 ${Math.round(13 * scale)}px 'Outfit', sans-serif`;
+      const textMetrics = ctx.measureText(fullTitle || title);
+      const badgeW = Math.max(195 * scale, textMetrics.width + (40 * scale));
+      const badgeH = (config.showSubtitle ? 48 : 34) * scale;
+      const x = cx - badgeW / 2;
+      const y = cy - badgeH / 2;
+
+      // Crisp Matte Black Pill with bright white pulse during transition
+      ctx.shadowColor = isTransitioning ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = (isTransitioning ? 20 : 8) * scale;
+
+      ctx.fillStyle = '#0a0a0a';
+      ctx.strokeStyle = isTransitioning ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = (isTransitioning ? 2 : 1) * scale;
+      drawCustomRoundRect(ctx, x, y, badgeW, badgeH, 8 * scale);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.shadowColor = 'transparent';
+
+      // Clean stark typography
+      ctx.fillStyle = '#fafafa';
+      ctx.font = `700 ${Math.round(13 * scale)}px 'Outfit', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(title, cx, y + (config.showSubtitle ? 17 * scale : badgeH / 2));
+
+      if (config.showSubtitle) {
+        ctx.fillStyle = '#a3a3a3';
+        ctx.font = `400 ${Math.round(9 * scale)}px 'Space Grotesk', monospace`;
+        ctx.fillText(subtitle.toUpperCase(), cx, y + 32 * scale);
+      }
+
+      // Dramatic Light Sweep Shine Overlay
+      if (shineProgress >= 0) {
+        drawShineBeam(ctx, x, y, badgeW, badgeH, shineProgress);
+      }
+    }
+
+    // Aesthetic targeting bounding box
+    function drawFaceBoundingBox(ctx, face) {
+      if (!face || isNaN(face.x) || isNaN(face.y) || !face.w || !face.h) return;
+
+      const x = Number(face.x) || 0;
+      const y = Number(face.y) || 0;
+      const w = Number(face.w) || 0;
+      const h = Number(face.h) || 0;
+      const cornerLen = Math.max(8, Math.min(w, h) * 0.22);
+      const color = config.theme === 'cyberpunk' ? '#06b6d4' :
+                    config.theme === 'museum' ? '#f59e0b' :
+                    config.theme === 'hologram' ? '#ec4899' : '#ffffff';
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+
+      // Corners
+      ctx.beginPath();
+      ctx.moveTo(x, y + cornerLen);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x + cornerLen, y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x + w - cornerLen, y);
+      ctx.lineTo(x + w);
+      ctx.lineTo(x + w, y + cornerLen);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x, y + h - cornerLen);
+      ctx.lineTo(x, y + h);
+      ctx.lineTo(x + cornerLen, y + h);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x + w - cornerLen, y + h);
+      ctx.lineTo(x + w);
+      ctx.lineTo(x + w, y + h - cornerLen);
+      ctx.stroke();
+
+      // Subtle fill
+      ctx.fillStyle = config.theme === 'cyberpunk' ? 'rgba(6, 182, 212, 0.04)' : 'rgba(245, 158, 11, 0.03)';
+      ctx.fillRect(x, y, w, h);
+      ctx.restore();
+    }
+
+    // UI Event Handlers
+    toggleCamBtn.addEventListener('click', () => {
+      config.isPaused = !config.isPaused;
+      if (config.isPaused) {
+        camBtnText.textContent = "Resume";
+        document.getElementById('status-indicator').classList.remove('bg-emerald-500');
+        document.getElementById('status-indicator').classList.add('bg-amber-500');
+      } else {
+        camBtnText.textContent = "Pause";
+        document.getElementById('status-indicator').classList.add('bg-emerald-500');
+        document.getElementById('status-indicator').classList.remove('bg-amber-500');
+      }
+    });
+
+    flipBtn.addEventListener('click', () => {
+      config.mirror = !config.mirror;
+      mirrorToggle.checked = config.mirror;
+    });
+
+    settingsToggleBtn.addEventListener('click', () => {
+      settingsPanel.classList.remove('translate-x-full');
+    });
+
+    closeSettingsBtn.addEventListener('click', () => {
+      settingsPanel.classList.add('translate-x-full');
+    });
+
+    // Custom Text Inputs
+    customTextInput.addEventListener('input', (e) => {
+      config.primaryText = e.target.value;
+    });
+
+    yearSuffixInput.addEventListener('input', (e) => {
+      config.yearSuffix = e.target.value;
+    });
+
+    appendYearToggle.addEventListener('change', (e) => {
+      config.appendYear = e.target.checked;
+    });
+
+    customSubInput.addEventListener('input', (e) => {
+      config.subtitleText = e.target.value;
+    });
+
+    // Theme selector buttons
+    document.querySelectorAll('.theme-select-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const theme = btn.dataset.theme;
+        config.theme = theme;
+        hudThemeText.textContent = theme;
+
+        document.querySelectorAll('.theme-select-btn').forEach(b => {
+          b.classList.remove('bg-amber-500/10', 'border-amber-500/50', 'text-amber-200');
+          b.classList.add('border-neutral-800', 'bg-neutral-900/60', 'text-neutral-300');
+        });
+
+        btn.classList.add('bg-amber-500/10', 'border-amber-500/50', 'text-amber-200');
+        btn.classList.remove('border-neutral-800', 'bg-neutral-900/60', 'text-neutral-300');
+      });
+    });
+
+    // Checkbox controls
+    showBoxToggle.addEventListener('change', (e) => config.showBox = e.target.checked);
+    showPinToggle.addEventListener('change', (e) => config.showPin = e.target.checked);
+    mirrorToggle.addEventListener('change', (e) => config.mirror = e.target.checked);
+    showSubtitleToggle.addEventListener('change', (e) => config.showSubtitle = e.target.checked);
+
+    // Sliders
+    offsetSlider.addEventListener('input', (e) => {
+      config.offsetY = parseInt(e.target.value);
+      offsetVal.textContent = `${config.offsetY}px`;
+    });
+
+    scaleSlider.addEventListener('input', (e) => {
+      config.scale = parseFloat(e.target.value);
+      scaleVal.textContent = `${config.scale.toFixed(2)}x`;
+    });
+
+    // Photo Snapshot & Modal
+    snapshotBtn.addEventListener('click', () => {
+      const dataUrl = canvas.toDataURL('image/png');
+      snapshotPreviewImg.src = dataUrl;
+      downloadSnapshotBtn.href = dataUrl;
+      downloadSnapshotBtn.download = `Artlover_2026_Capture_${Date.now()}.png`;
+      snapshotModal.classList.remove('hidden');
+    });
+
+    closeModalBtn.addEventListener('click', () => snapshotModal.classList.add('hidden'));
+    cancelSnapshotBtn.addEventListener('click', () => snapshotModal.classList.add('hidden'));
+
+    // Start everything once window is loaded
+    window.onload = () => {
+      renderPoolChips();
+      initFaceDetection();
+    };
+  </script>
+</body>
+</html>
