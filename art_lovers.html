@@ -4,16 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Artlover, 2026 — Live Face Tracker & AR Plaque</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-  
-  <!-- MediaPipe Face Detection -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+  <!-- Tailwind CSS (self-hosted) -->
+  <script src="offline/tailwind-play.js"></script>
+  <!-- Google Fonts (self-hosted) -->
+  <link href="offline/fonts/fonts.css" rel="stylesheet">
+
+  <!-- MediaPipe Face Detection (self-hosted) -->
+  <script src="offline/mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="offline/mediapipe/face_detection/face_detection.js"></script>
 
   <style>
     body {
@@ -549,6 +547,7 @@
     let frameCount = 0;
     let currentFps = 60;
     let cameraInstance = null;
+    let cameraRunning = false;
     let faceDetector = null;
     let toastTimeout = null;
     let noticeTimeout = null;
@@ -767,7 +766,7 @@
       
       try {
         faceDetector = new FaceDetection({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+          locateFile: (file) => `offline/mediapipe/face_detection/${file}`
         });
 
         faceDetector.setOptions({
@@ -804,24 +803,23 @@
           canvas.height = video.videoHeight || 720;
           loadingOverlay.classList.add('hidden');
 
-          if (cameraInstance) {
-            try { cameraInstance.stop(); } catch (e) {}
-          }
+          cameraRunning = true;
+          cameraInstance = {
+            stop: () => { cameraRunning = false; }
+          };
 
-          cameraInstance = new Camera(video, {
-            onFrame: async () => {
-              if (!config.isPaused && video.readyState >= 2 && faceDetector) {
-                try {
-                  await faceDetector.send({ image: video });
-                } catch (err) {
-                  console.error("Face detection send error:", err);
-                }
+          const frameLoop = async () => {
+            if (!cameraRunning) return;
+            if (!config.isPaused && video.readyState >= 2 && faceDetector) {
+              try {
+                await faceDetector.send({ image: video });
+              } catch (err) {
+                console.error("Face detection send error:", err);
               }
-            },
-            width: video.videoWidth || 1280,
-            height: video.videoHeight || 720
-          });
-          cameraInstance.start().catch(err => console.error("Camera start error:", err));
+            }
+            requestAnimationFrame(frameLoop);
+          };
+          requestAnimationFrame(frameLoop);
         };
       }).catch((err) => {
         console.error("Webcam access error:", err);
@@ -1586,6 +1584,7 @@
     window.onload = () => {
       renderPoolChips();
       initFaceDetection();
+      toggleZenFullscreen(true);
     };
   </script>
 </body>
