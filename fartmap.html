@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fart Globe 💨</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b1020;color:#eee;font-family:system-ui,sans-serif;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+  #ui{position:fixed;top:10px;left:10px;background:#000a;padding:10px 14px;border-radius:8px;font-size:14px}
+  button{margin-top:6px;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <b>💨 Where people fart</b><br>
+  Drag to spin. Click/tap the globe to report a fart.<br>
+  <span id="count"></span><br>
+  <button id="clear">Clear my farts</button>
+</div>
+<script>
+// Very rough continent outlines as [lon, lat] points.
+const LAND = [
+ [[-168,66],[-140,70],[-95,72],[-80,68],[-62,60],[-55,50],[-70,44],[-76,35],[-81,25],[-97,26],[-105,20],[-95,16],[-83,9],[-78,8],[-90,15],[-110,24],[-117,33],[-124,42],[-125,49],[-140,60],[-165,60]],
+ [[-78,8],[-60,10],[-50,0],[-35,-7],[-40,-22],[-58,-38],[-65,-55],[-74,-50],[-71,-30],[-80,-5]],
+ [[-10,36],[-9,43],[-2,48],[5,52],[10,57],[20,60],[30,70],[45,68],[60,70],[100,76],[140,72],[170,68],[160,55],[140,45],[122,30],[110,20],[105,10],[95,18],[80,8],[72,20],[57,25],[43,13],[35,30],[28,38],[15,38],[5,43]],
+ [[-17,21],[-5,35],[10,37],[32,31],[43,12],[51,11],[40,-15],[33,-27],[20,-35],[12,-17],[9,4],[-8,5],[-17,14]],
+ [[114,-22],[130,-12],[142,-11],[153,-27],[147,-39],[130,-32],[115,-34]],
+ [[-55,60],[-20,70],[-20,82],[-60,82],[-70,76]]
+];
+const SEED=[[40.7,-74],[51.5,-0.1],[48.9,2.3],[35.7,139.7],[-33.9,151.2],[-23.5,-46.6],[28.6,77.2],[30,31.2],[-1.3,36.8],[55.7,37.6],[37.8,-122.4],[19.4,-99.1]];
+const KEY='fartGlobe.v1';
+let mine=[]; try{mine=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){}
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,R,rotLon=-20,rotLat=20,t0=performance.now(),dragging=false,moved=0,last,pulses=[];
+function resize(){const d=devicePixelRatio||1;W=cv.width=innerWidth*d;H=cv.height=innerHeight*d;R=Math.min(W,H)*0.42}
+addEventListener('resize',resize);resize();
+const rad=Math.PI/180;
+function project(lat,lon){
+  const l=(lon-rotLon)*rad,p=lat*rad,p0=rotLat*rad;
+  const x=Math.cos(p)*Math.sin(l);
+  const y=Math.cos(p0)*Math.sin(p)-Math.sin(p0)*Math.cos(p)*Math.cos(l);
+  const z=Math.sin(p0)*Math.sin(p)+Math.cos(p0)*Math.cos(p)*Math.cos(l);
+  return {x:W/2+R*x,y:H/2-R*y,z};
+}
+function invert(px,py){
+  const x=(px-W/2)/R,y=-(py-H/2)/R,r2=x*x+y*y;
+  if(r2>1)return null;
+  const z=Math.sqrt(1-r2),p0=rotLat*rad;
+  const sinp=y*Math.cos(p0)+z*Math.sin(p0);
+  const lat=Math.asin(sinp);
+  const lon=rotLon*rad+Math.atan2(x,z*Math.cos(p0)-y*Math.sin(p0));
+  let L=lon/rad;L=((L+540)%360)-180;
+  return [lat/rad,L];
+}
+function path(points,close){
+  let pen=false;
+  for(const [lon,lat] of points){
+    const q=project(lat,lon);
+    if(q.z>0){pen?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);pen=true}else pen=false;
+  }
+  if(close)ctx.closePath();
+}
+function draw(now){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createRadialGradient(W/2-R*.3,H/2-R*.3,R*.1,W/2,H/2,R);
+  g.addColorStop(0,'#2a5a9a');g.addColorStop(1,'#0d2442');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(W/2,H/2,R,0,7);ctx.fill();
+  ctx.strokeStyle='#ffffff18';ctx.lineWidth=1;
+  for(let lat=-60;lat<=60;lat+=30){ctx.beginPath();path(Array.from({length:73},(_,i)=>[i*5-180,lat]));ctx.stroke()}
+  for(let lon=-180;lon<180;lon+=30){ctx.beginPath();path(Array.from({length:37},(_,i)=>[lon,i*5-90]));ctx.stroke()}
+  ctx.fillStyle='#4f8a4f';ctx.strokeStyle='#8fc78f';
+  for(const poly of LAND){
+    if(!poly.every(([lo,la])=>project(la,lo).z>0)){ctx.beginPath();path(poly,false);ctx.stroke();continue}
+    ctx.beginPath();path(poly,true);ctx.fill();ctx.stroke();
+  }
+  const pts=SEED.map(p=>[p,.6]).concat(mine.map(p=>[p,1]));
+  const s=Math.max(1,R/300);
+  for(const [[lat,lon],a] of pts){
+    const q=project(lat,lon);if(q.z<=0)continue;
+    ctx.globalAlpha=a;ctx.font=(18*s)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('💨',q.x,q.y);
+  }
+  ctx.globalAlpha=1;
+  pulses=pulses.filter(p=>now-p.t<1200);
+  for(const p of pulses){
+    const q=project(p.lat,p.lon);if(q.z<=0)continue;
+    const k=(now-p.t)/1200;
+    ctx.strokeStyle=`rgba(255,220,120,${1-k})`;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(q.x,q.y,k*40*s,0,7);ctx.stroke();
+  }
+  ctx.strokeStyle='#8cf';ctx.lineWidth=2;ctx.beginPath();ctx.arc(W/2,H/2,R,0,7);ctx.stroke();
+  if(!dragging)rotLon+=0.05;
+  document.getElementById('count').textContent=`${SEED.length+mine.length} farts reported (${mine.length} yours)`;
+  requestAnimationFrame(draw);
+}
+cv.addEventListener('pointerdown',e=>{dragging=true;moved=0;last=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing'});
+cv.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const dx=e.clientX-last[0],dy=e.clientY-last[1];moved+=Math.abs(dx)+Math.abs(dy);
+  rotLon-=dx*180/(R/(devicePixelRatio||1))/Math.PI*1.0;
+  rotLat=Math.max(-89,Math.min(89,rotLat+dy*180/(R/(devicePixelRatio||1))/Math.PI));
+  last=[e.clientX,e.clientY];
+});
+cv.addEventListener('pointerup',e=>{
+  dragging=false;cv.style.cursor='grab';
+  if(moved>5)return;
+  const d=devicePixelRatio||1,ll=invert(e.clientX*d,e.clientY*d);
+  if(!ll)return;
+  mine.push(ll);localStorage.setItem(KEY,JSON.stringify(mine));
+  pulses.push({lat:ll[0],lon:ll[1],t:performance.now()});
+});
+document.getElementById('clear').onclick=()=>{mine=[];localStorage.removeItem(KEY)};
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
