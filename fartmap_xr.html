@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fart Globe 💨</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b1020;color:#eee;font-family:system-ui,sans-serif;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+  #ar-canvas{display:none;position:fixed;inset:0;z-index:1}
+  #ui{position:fixed;z-index:2;top:12px;left:12px;max-width:min(340px,calc(100vw - 52px));background:#07101ddd;padding:14px 16px;border:1px solid #ffffff24;border-radius:12px;font-size:14px;line-height:1.5;backdrop-filter:blur(12px)}
+  #ui b{font-size:16px}
+  #status{display:block;margin-top:5px;color:#b8c8df}
+  button{margin:10px 6px 0 0;padding:8px 12px;border:0;border-radius:7px;background:#84dfc0;color:#07101d;font:inherit;font-weight:650;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #end-ar,#place-globe,#report{display:none}
+  @media(max-width:480px){#ui{top:8px;left:8px;padding:11px 12px;font-size:13px}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="ar-canvas" aria-label="Augmented reality fart globe"></canvas>
+<div id="ui">
+  <b>💨 Fart Globe AR</b><br>
+  Place a tiny globe in your space, then report a fart. On a desktop, spin the globe and tap it to report.
+  <span id="status">Checking WebXR support…</span>
+  <span id="count"></span><br>
+  <button id="start-ar" disabled>Start AR</button>
+  <button id="place-globe">Place globe</button>
+  <button id="report">Report a fart</button>
+  <button id="end-ar">Exit AR</button>
+  <button id="clear">Clear my farts</button>
+</div>
+<script>
+// Very rough continent outlines as [lon, lat] points.
+const LAND = [
+ [[-168,66],[-140,70],[-95,72],[-80,68],[-62,60],[-55,50],[-70,44],[-76,35],[-81,25],[-97,26],[-105,20],[-95,16],[-83,9],[-78,8],[-90,15],[-110,24],[-117,33],[-124,42],[-125,49],[-140,60],[-165,60]],
+ [[-78,8],[-60,10],[-50,0],[-35,-7],[-40,-22],[-58,-38],[-65,-55],[-74,-50],[-71,-30],[-80,-5]],
+ [[-10,36],[-9,43],[-2,48],[5,52],[10,57],[20,60],[30,70],[45,68],[60,70],[100,76],[140,72],[170,68],[160,55],[140,45],[122,30],[110,20],[105,10],[95,18],[80,8],[72,20],[57,25],[43,13],[35,30],[28,38],[15,38],[5,43]],
+ [[-17,21],[-5,35],[10,37],[32,31],[43,12],[51,11],[40,-15],[33,-27],[20,-35],[12,-17],[9,4],[-8,5],[-17,14]],
+ [[114,-22],[130,-12],[142,-11],[153,-27],[147,-39],[130,-32],[115,-34]],
+ [[-55,60],[-20,70],[-20,82],[-60,82],[-70,76]]
+];
+const SEED=[[40.7,-74],[51.5,-0.1],[48.9,2.3],[35.7,139.7],[-33.9,151.2],[-23.5,-46.6],[28.6,77.2],[30,31.2],[-1.3,36.8],[55.7,37.6],[37.8,-122.4],[19.4,-99.1]];
+const KEY='fartGlobe.v1';
+let mine=[]; try{mine=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){}
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const arCanvas=document.getElementById('ar-canvas');
+const statusEl=document.getElementById('status');
+let W,H,R,rotLon=-20,rotLat=20,t0=performance.now(),dragging=false,moved=0,last,pulses=[];
+function resize(){const d=devicePixelRatio||1;W=cv.width=innerWidth*d;H=cv.height=innerHeight*d;R=Math.min(W,H)*0.42}
+addEventListener('resize',resize);resize();
+const rad=Math.PI/180;
+function project(lat,lon){
+  const l=(lon-rotLon)*rad,p=lat*rad,p0=rotLat*rad;
+  const x=Math.cos(p)*Math.sin(l);
+  const y=Math.cos(p0)*Math.sin(p)-Math.sin(p0)*Math.cos(p)*Math.cos(l);
+  const z=Math.sin(p0)*Math.sin(p)+Math.cos(p0)*Math.cos(p)*Math.cos(l);
+  return {x:W/2+R*x,y:H/2-R*y,z};
+}
+function invert(px,py){
+  const x=(px-W/2)/R,y=-(py-H/2)/R,r2=x*x+y*y;
+  if(r2>1)return null;
+  const z=Math.sqrt(1-r2),p0=rotLat*rad;
+  const sinp=y*Math.cos(p0)+z*Math.sin(p0);
+  const lat=Math.asin(sinp);
+  const lon=rotLon*rad+Math.atan2(x,z*Math.cos(p0)-y*Math.sin(p0));
+  let L=lon/rad;L=((L+540)%360)-180;
+  return [lat/rad,L];
+}
+function path(points,close){
+  let pen=false;
+  for(const [lon,lat] of points){
+    const q=project(lat,lon);
+    if(q.z>0){pen?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);pen=true}else pen=false;
+  }
+  if(close)ctx.closePath();
+}
+function draw(now){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createRadialGradient(W/2-R*.3,H/2-R*.3,R*.1,W/2,H/2,R);
+  g.addColorStop(0,'#2a5a9a');g.addColorStop(1,'#0d2442');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(W/2,H/2,R,0,7);ctx.fill();
+  ctx.strokeStyle='#ffffff18';ctx.lineWidth=1;
+  for(let lat=-60;lat<=60;lat+=30){ctx.beginPath();path(Array.from({length:73},(_,i)=>[i*5-180,lat]));ctx.stroke()}
+  for(let lon=-180;lon<180;lon+=30){ctx.beginPath();path(Array.from({length:37},(_,i)=>[lon,i*5-90]));ctx.stroke()}
+  ctx.fillStyle='#4f8a4f';ctx.strokeStyle='#8fc78f';
+  for(const poly of LAND){
+    if(!poly.every(([lo,la])=>project(la,lo).z>0)){ctx.beginPath();path(poly,false);ctx.stroke();continue}
+    ctx.beginPath();path(poly,true);ctx.fill();ctx.stroke();
+  }
+  const pts=SEED.map(p=>[p,.6]).concat(mine.map(p=>[p,1]));
+  const s=Math.max(1,R/300);
+  for(const [[lat,lon],a] of pts){
+    const q=project(lat,lon);if(q.z<=0)continue;
+    ctx.globalAlpha=a;ctx.font=(18*s)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('💨',q.x,q.y);
+  }
+  ctx.globalAlpha=1;
+  pulses=pulses.filter(p=>now-p.t<1200);
+  for(const p of pulses){
+    const q=project(p.lat,p.lon);if(q.z<=0)continue;
+    const k=(now-p.t)/1200;
+    ctx.strokeStyle=`rgba(255,220,120,${1-k})`;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(q.x,q.y,k*40*s,0,7);ctx.stroke();
+  }
+  ctx.strokeStyle='#8cf';ctx.lineWidth=2;ctx.beginPath();ctx.arc(W/2,H/2,R,0,7);ctx.stroke();
+  if(!dragging)rotLon+=0.05;
+  document.getElementById('count').textContent=`${SEED.length+mine.length} farts reported (${mine.length} yours)`;
+  requestAnimationFrame(draw);
+}
+cv.addEventListener('pointerdown',e=>{dragging=true;moved=0;last=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing'});
+cv.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const dx=e.clientX-last[0],dy=e.clientY-last[1];moved+=Math.abs(dx)+Math.abs(dy);
+  rotLon-=dx*180/(R/(devicePixelRatio||1))/Math.PI*1.0;
+  rotLat=Math.max(-89,Math.min(89,rotLat+dy*180/(R/(devicePixelRatio||1))/Math.PI));
+  last=[e.clientX,e.clientY];
+});
+cv.addEventListener('pointerup',e=>{
+  dragging=false;cv.style.cursor='grab';
+  if(moved>5)return;
+  const d=devicePixelRatio||1,ll=invert(e.clientX*d,e.clientY*d);
+  if(!ll)return;
+  mine.push(ll);localStorage.setItem(KEY,JSON.stringify(mine));
+  pulses.push({lat:ll[0],lon:ll[1],t:performance.now()});
+});
+document.getElementById('clear').onclick=()=>{
+  mine=[];localStorage.removeItem(KEY);xrMarkers.splice(SEED.length);
+  if(gl)refreshMarkers();
+};
+requestAnimationFrame(draw);
+
+const startButton=document.getElementById('start-ar');
+const placeButton=document.getElementById('place-globe');
+const reportButton=document.getElementById('report');
+const endButton=document.getElementById('end-ar');
+let xrSession=null,viewerSpace=null,hitTestSource=null,latestHit=null,placedMatrix=null,gl=null;
+let sphereBuffer,gridBuffer,markerBuffer,reticleBuffer,markerCount=0,gridVertexCount=0;
+const xrMarkers=SEED.concat(mine);
+
+function shader(type,source){
+  const result=gl.createShader(type);
+  gl.shaderSource(result,source);gl.compileShader(result);
+  if(!gl.getShaderParameter(result,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(result));
+  return result;
+}
+function createProgram(){
+  const program=gl.createProgram();
+  gl.attachShader(program,shader(gl.VERTEX_SHADER,`
+    attribute vec3 aPosition;
+    uniform mat4 uMvp;
+    uniform float uPointSize;
+    varying vec3 vNormal;
+    void main(){vNormal=aPosition;gl_Position=uMvp*vec4(aPosition,1.0);gl_PointSize=uPointSize;}
+  `));
+  gl.attachShader(program,shader(gl.FRAGMENT_SHADER,`
+    precision mediump float;
+    uniform vec4 uColor;
+    uniform float uLand;
+    uniform float uRound;
+    varying vec3 vNormal;
+    void main(){
+      if(uRound>0.5&&distance(gl_PointCoord,vec2(0.5))>0.5)discard;
+      vec3 color=uColor.rgb;
+      if(uLand>0.5){
+        vec3 n=normalize(vNormal);
+        float shape=sin(n.x*8.0+sin(n.z*6.0)*1.7)*cos(n.y*9.0+cos(n.x*5.0))*0.55
+          +sin(n.z*13.0+n.y*4.0)*0.25;
+        color=shape>0.0?vec3(0.20,0.62,0.38):vec3(0.08,0.34,0.67);
+        color*=0.65+0.35*max(dot(normalize(n),normalize(vec3(-0.4,0.8,1.0))),0.0);
+      }
+      gl_FragColor=vec4(color,uColor.a);
+    }
+  `));
+  gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));
+  return program;
+}
+let xrProgram,attribs,uniforms;
+function createBuffer(data){
+  const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);return buffer;
+}
+function sphereVertices(){
+  const out=[],rows=32,cols=48;
+  for(let y=0;y<rows;y++){
+    const lat0=Math.PI*y/rows,lat1=Math.PI*(y+1)/rows;
+    for(let x=0;x<cols;x++){
+      const lon0=2*Math.PI*x/cols,lon1=2*Math.PI*(x+1)/cols;
+      const point=(lat,lon)=>[Math.sin(lat)*Math.sin(lon),Math.cos(lat),Math.sin(lat)*Math.cos(lon)];
+      const a=point(lat0,lon0),b=point(lat1,lon0),c=point(lat1,lon1),d=point(lat0,lon1);
+      out.push(...a,...b,...c,...a,...c,...d);
+    }
+  }
+  return out;
+}
+function gridVertices(){
+  const out=[],segments=96;
+  for(let i=1;i<6;i++){
+    const lat=Math.PI*i/6;
+    for(let j=0;j<segments;j++){
+      const a=2*Math.PI*j/segments,b=2*Math.PI*(j+1)/segments;
+      out.push(Math.sin(lat)*Math.sin(a)*1.003,Math.cos(lat)*1.003,Math.sin(lat)*Math.cos(a)*1.003,
+        Math.sin(lat)*Math.sin(b)*1.003,Math.cos(lat)*1.003,Math.sin(lat)*Math.cos(b)*1.003);
+    }
+  }
+  for(let i=0;i<12;i++){
+    const lon=2*Math.PI*i/12;
+    for(let j=0;j<segments;j++){
+      const a=Math.PI*j/segments,b=Math.PI*(j+1)/segments;
+      out.push(Math.sin(a)*Math.sin(lon)*1.003,Math.cos(a)*1.003,Math.sin(a)*Math.cos(lon)*1.003,
+        Math.sin(b)*Math.sin(lon)*1.003,Math.cos(b)*1.003,Math.sin(b)*Math.cos(lon)*1.003);
+    }
+  }
+  return out;
+}
+function pointOnSphere([lat,lon]){
+  const p=lat*rad,l=lon*rad;
+  return [Math.cos(p)*Math.sin(l)*1.018,Math.sin(p)*1.018,Math.cos(p)*Math.cos(l)*1.018];
+}
+function refreshMarkers(){
+  const data=xrMarkers.flatMap(pointOnSphere);
+  markerCount=data.length/3;
+  gl.bindBuffer(gl.ARRAY_BUFFER,markerBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);
+}
+function setupGl(){
+  if(gl)return;
+  gl=arCanvas.getContext('webgl',{alpha:true,antialias:true});
+  if(!gl)throw new Error('WebGL is not available in this browser.');
+  xrProgram=createProgram();
+  attribs={position:gl.getAttribLocation(xrProgram,'aPosition')};
+  uniforms={mvp:gl.getUniformLocation(xrProgram,'uMvp'),color:gl.getUniformLocation(xrProgram,'uColor'),
+    land:gl.getUniformLocation(xrProgram,'uLand'),round:gl.getUniformLocation(xrProgram,'uRound'),
+    pointSize:gl.getUniformLocation(xrProgram,'uPointSize')};
+  const grid=gridVertices();
+  sphereBuffer=createBuffer(sphereVertices());gridBuffer=createBuffer(grid);gridVertexCount=grid.length/3;
+  markerBuffer=createBuffer([]);refreshMarkers();
+  const ring=[];
+  for(let i=0;i<96;i++){
+    const a=2*Math.PI*i/96,b=2*Math.PI*(i+1)/96;
+    ring.push(Math.cos(a),0.004,Math.sin(a),Math.cos(b),0.004,Math.sin(b));
+  }
+  reticleBuffer=createBuffer(ring);
+}
+function multiply(a,b){
+  const out=new Float32Array(16);
+  for(let c=0;c<4;c++)for(let r=0;r<4;r++)
+    out[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  return out;
+}
+function translation(x,y,z){const m=new Float32Array(16);m[0]=m[5]=m[10]=m[15]=1;m[12]=x;m[13]=y;m[14]=z;return m}
+function scaling(s){const m=new Float32Array(16);m[0]=m[5]=m[10]=s;m[15]=1;return m}
+function rotationY(a){const m=new Float32Array(16),c=Math.cos(a),s=Math.sin(a);m[0]=c;m[2]=-s;m[5]=1;m[8]=s;m[10]=c;m[15]=1;return m}
+function drawBuffer(buffer,mode,count,mvp,color,land=0,round=0,size=1){
+  gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.enableVertexAttribArray(attribs.position);
+  gl.vertexAttribPointer(attribs.position,3,gl.FLOAT,false,0,0);
+  gl.uniformMatrix4fv(uniforms.mvp,false,mvp);gl.uniform4fv(uniforms.color,color);
+  gl.uniform1f(uniforms.land,land);gl.uniform1f(uniforms.round,round);gl.uniform1f(uniforms.pointSize,size);
+  gl.drawArrays(mode,0,count);
+}
+function renderXrFrame(time,frame){
+  const session=frame.session;
+  session.requestAnimationFrame(renderXrFrame);
+  const pose=frame.getViewerPose(xrReferenceSpace);
+  if(!pose)return;
+  const layer=session.renderState.baseLayer;
+  gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
+  if(!placedMatrix&&hitTestSource){
+    const hits=frame.getHitTestResults(hitTestSource);
+    latestHit=hits.length?hits[0].getPose(xrReferenceSpace):null;
+  }
+  gl.useProgram(xrProgram);
+  for(const view of pose.views){
+    const viewport=layer.getViewport(view);gl.viewport(viewport.x,viewport.y,viewport.width,viewport.height);
+    const viewProjection=multiply(view.projectionMatrix,view.transform.inverse.matrix);
+    if(latestHit&&!placedMatrix){
+      const reticle=multiply(latestHit.transform.matrix,scaling(0.08));
+      drawBuffer(reticleBuffer,gl.LINES,192,multiply(viewProjection,reticle),[0.4,1,0.75,0.95]);
+    }
+    if(placedMatrix){
+      const model=multiply(multiply(multiply(placedMatrix,translation(0,0.19,0)),rotationY(time*0.00025)),scaling(0.12));
+      const mvp=multiply(viewProjection,model);
+      drawBuffer(sphereBuffer,gl.TRIANGLES,32*48*6,mvp,[1,1,1,1],1);
+      drawBuffer(gridBuffer,gl.LINES,gridVertexCount,mvp,[0.72,0.91,1,0.45]);
+      drawBuffer(markerBuffer,gl.POINTS,markerCount,mvp,[1,0.78,0.25,1],0,1,Math.max(5,viewport.width/180));
+    }
+  }
+}
+let xrReferenceSpace=null;
+async function startAr(){
+  try{
+    setupGl();
+    await gl.makeXRCompatible();
+    xrSession=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:document.body}
+    });
+    xrReferenceSpace=await xrSession.requestReferenceSpace('local');
+    viewerSpace=await xrSession.requestReferenceSpace('viewer');
+    hitTestSource=await xrSession.requestHitTestSource({space:viewerSpace});
+    xrSession.updateRenderState({baseLayer:new XRWebGLLayer(xrSession,gl, {alpha:true,depth:true})});
+    xrSession.addEventListener('end',endAr,{once:true});
+    xrSession.addEventListener('select',()=>{
+      if(!placedMatrix&&latestHit)placeGlobe();
+      else if(placedMatrix)reportFart();
+    });
+    arCanvas.style.display='block';cv.style.display='none';
+    startButton.style.display='none';endButton.style.display='inline-block';
+    placeButton.style.display='inline-block';statusEl.textContent='Move your phone to find a surface, then place the globe.';
+    xrSession.requestAnimationFrame(renderXrFrame);
+  }catch(error){
+    if(xrSession)await xrSession.end().catch(()=>{});
+    endAr();
+    statusEl.textContent=error.message||'Could not start AR. Try a supported browser over HTTPS.';
+  }
+}
+function endAr(){
+  if(hitTestSource){hitTestSource.cancel();hitTestSource=null}
+  xrSession=null;latestHit=null;placedMatrix=null;
+  arCanvas.style.display='none';cv.style.display='block';
+  startButton.style.display='inline-block';placeButton.style.display='none';
+  reportButton.style.display='none';endButton.style.display='none';
+  statusEl.textContent='AR ended. Your reports are saved only on this device.';
+}
+function placeGlobe(){
+  if(!latestHit)return;
+  placedMatrix=new Float32Array(latestHit.transform.matrix);
+  placeButton.style.display='none';reportButton.style.display='inline-block';
+  statusEl.textContent='Globe placed. Tap the screen or choose Report a fart to add a marker.';
+}
+function reportFart(){
+  const point=[Math.random()*140-70,Math.random()*360-180];
+  mine.push(point);xrMarkers.push(point);localStorage.setItem(KEY,JSON.stringify(mine));
+  refreshMarkers();
+}
+startButton.addEventListener('click',startAr);
+placeButton.addEventListener('click',placeGlobe);
+reportButton.addEventListener('click',reportFart);
+endButton.addEventListener('click',()=>xrSession?.end());
+if(navigator.xr){
+  navigator.xr.isSessionSupported('immersive-ar').then(supported=>{
+    if(supported){startButton.disabled=false;statusEl.textContent='AR is ready. Reports are stored only on this device.'}
+    else statusEl.textContent='AR is not supported here. Use a compatible phone browser over HTTPS, or explore the globe below.';
+  }).catch(()=>{statusEl.textContent='WebXR support could not be checked. Explore the globe below.'});
+}else statusEl.textContent='WebXR is not available here. Use a compatible phone browser over HTTPS, or explore the globe below.';
+</script>
+</body>
+</html>
