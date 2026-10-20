@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rubik's Network: Graph Theory & Solver Explorer</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js CDN for 3D Cube -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- D3.js CDN for Network Graphs -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cubeU: '#f8fafc',
+            cubeD: '#facc15',
+            cubeF: '#22c55e',
+            cubeB: '#3b82f6',
+            cubeR: '#ef4444',
+            cubeL: '#f97316',
+            networkBg: '#080c14',
+            cardBg: '#0f172a',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #070b12;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px -4px rgba(6, 182, 212, 0.45);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 25px -4px rgba(16, 185, 129, 0.45);
+    }
+    .glow-purple {
+      box-shadow: 0 0 25px -4px rgba(168, 85, 247, 0.45);
+    }
+    .pulse-ring {
+      animation: pulse-ring 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.9); opacity: 0.9; }
+      50% { transform: scale(1.35); opacity: 0.2; }
+      100% { transform: scale(0.9); opacity: 0.9; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#070b12] text-slate-100 selection:bg-cyan-500 selection:text-black">
+
+  <header class="border-b border-slate-800/80 bg-slate-900/70 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 py-3">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-emerald-400 p-0.5 shadow-lg shadow-cyan-500/20 flex items-center justify-center">
+          <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+            </svg>
+          </div>
+        </div>
+        <div>
+          <h1 class="text-lg md:text-xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 via-sky-200 to-indigo-300 bg-clip-text text-transparent">
+            Rubik's Network & Solvers
+          </h1>
+          <p class="text-xs text-slate-400 hidden sm:block">Graph Theory, Cayley Topologies & Algorithmic Decompositions</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 md:space-x-3">
+        <div class="flex items-center bg-slate-800/70 border border-slate-700/60 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-ping"></span>
+          <span class="text-slate-400 mr-1.5 font-mono">Distance to e:</span>
+          <span id="badge-depth" class="font-bold text-cyan-300 font-mono">0</span>
+        </div>
+        <button id="btn-audio" class="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 border border-slate-700/60 text-slate-300 transition-colors" title="Toggle Sound Feedback">
+          <svg id="audio-icon-on" class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+          <svg id="audio-icon-off" class="w-5 h-5 text-slate-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+        </button>
+        <button id="btn-theory-drawer" class="px-3 py-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 font-medium text-xs flex items-center gap-1.5 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <span>Theory Guide</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto w-full p-3 sm:p-4 md:p-6 lg:p-8 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+    
+    <!-- LEFT PANEL: 3D Viewport, Solvers Deck & Permutation Controls (5 cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-4">
+      
+      <!-- 3D Cube Card -->
+      <div class="relative bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+        <div class="px-4 py-3 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Physical Group State</span>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">Click & Drag to rotate</span>
+        </div>
+
+        <div id="cube-container" class="w-full h-[300px] sm:h-[340px] relative bg-gradient-to-b from-slate-950 to-[#0a1122] cursor-grab active:cursor-grabbing">
+          <!-- Floating status banner -->
+          <div id="cube-status-banner" class="absolute top-3 left-3 bg-slate-900/95 backdrop-blur-md border border-slate-700/60 rounded-lg px-2.5 py-1 text-xs font-mono text-cyan-300 z-10 flex items-center gap-1.5 shadow-md">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span id="cube-status-text">State: Solved [Identity e]</span>
+          </div>
+        </div>
+
+        <div class="p-4 bg-slate-950/80 border-t border-slate-800/90 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <span>Automated Solvers (3 Methods)</span>
+            </span>
+            <span class="text-[11px] text-cyan-400 font-mono">Solve from Any State</span>
+          </div>
+
+          <!-- Solver Method Cards Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <!-- Method 1: God's Geodesic (BFS) -->
+            <button id="btn-solve-geodesic" class="p-2.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-700/50 text-left transition group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[11px] font-bold text-cyan-300 font-mono">Method 1</span>
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+              </div>
+              <div class="font-bold text-xs text-slate-100 group-hover:text-cyan-200">God's Geodesic</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Shortest Cayley Path (BFS &le;20 moves)</div>
+            </button>
+
+            <!-- Method 2: Layer-by-Layer (CFOP) -->
+            <button id="btn-solve-cfop" class="p-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-700/50 text-left transition group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[11px] font-bold text-purple-300 font-mono">Method 2</span>
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+              </div>
+              <div class="font-bold text-xs text-slate-100 group-hover:text-purple-200">CFOP Layered</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Cross &rarr; F2L &rarr; OLL &rarr; PLL</div>
+            </button>
+
+            <!-- Method 3: Kociemba 2-Phase Subgroups -->
+            <button id="btn-solve-kociemba" class="p-2.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-700/50 text-left transition group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[11px] font-bold text-emerald-300 font-mono">Method 3</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              </div>
+              <div class="font-bold text-xs text-slate-100 group-hover:text-emerald-200">Kociemba 2-Phase</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Subgroup Cascade G&sub0;&rarr;G&sub1;&rarr;e</div>
+            </button>
+          </div>
+
+          <div id="solver-playback-bar" class="hidden bg-slate-900/90 border border-slate-700 rounded-xl p-3 flex-col gap-2.5 shadow-inner">
+            <div class="flex items-center justify-between text-xs">
+              <span id="solver-name-label" class="font-bold text-cyan-300">Solving...</span>
+              <span id="solver-step-counter" class="font-mono text-slate-400">Step 0 / 0</span>
+            </div>
+            
+            <!-- Live Step Explainer -->
+            <div id="solver-step-explainer" class="text-[11px] text-slate-300 bg-slate-950/70 p-2 rounded-lg border border-slate-800 leading-snug font-mono">
+              Ready to execute path.
+            </div>
+
+            <!-- Playback control buttons -->
+            <div class="flex items-center justify-between pt-1">
+              <div class="flex items-center space-x-1.5">
+                <button id="solver-btn-prev" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-mono text-slate-300 border border-slate-700" title="Step Back">
+                  &laquo; Prev
+                </button>
+                <button id="solver-btn-play" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-xs font-bold text-slate-950 transition" title="Play or Pause">
+                  Pause
+                </button>
+                <button id="solver-btn-next" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-mono text-slate-300 border border-slate-700" title="Step Forward">
+                  Next &raquo;
+                </button>
+                <button id="solver-btn-stop" class="px-2 py-1 bg-red-950/60 hover:bg-red-900 border border-red-700/50 rounded-lg text-xs text-red-300" title="Cancel Solve">
+                  Stop
+                </button>
+              </div>
+
+              <!-- Speed selection -->
+              <div class="flex items-center space-x-1 text-[11px] font-mono text-slate-400">
+                <span>Speed:</span>
+                <select id="solver-speed" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200">
+                  <option value="450">Slow</option>
+                  <option value="220" selected>Normal</option>
+                  <option value="110">Fast</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quarter Turn Generators Deck -->
+          <div class="pt-2 border-t border-slate-800/80">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-medium text-slate-400">Network Generators (12 QTM Face Turns):</span>
+              <span class="text-[11px] text-indigo-400 font-mono">Degree d=12</span>
+            </div>
+
+            <div class="grid grid-cols-6 gap-1.5 text-xs font-mono font-semibold">
+              <button data-move="U" class="move-btn py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-100 transition shadow-sm active:scale-95" title="Up Clockwise">U</button>
+              <button data-move="U'" class="move-btn py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 transition shadow-sm active:scale-95" title="Up Counter-clockwise">U'</button>
+              <button data-move="R" class="move-btn py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-700/60 text-red-200 transition shadow-sm active:scale-95" title="Right Clockwise">R</button>
+              <button data-move="R'" class="move-btn py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-700/60 text-red-300 transition shadow-sm active:scale-95" title="Right Counter-clockwise">R'</button>
+              <button data-move="F" class="move-btn py-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 transition shadow-sm active:scale-95" title="Front Clockwise">F</button>
+              <button data-move="F'" class="move-btn py-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-700/60 text-emerald-300 transition shadow-sm active:scale-95" title="Front Counter-clockwise">F'</button>
+
+              <button data-move="D" class="move-btn py-1.5 rounded-lg bg-yellow-950/40 hover:bg-yellow-900/60 border border-yellow-700/60 text-yellow-200 transition shadow-sm active:scale-95" title="Down Clockwise">D</button>
+              <button data-move="D'" class="move-btn py-1.5 rounded-lg bg-yellow-950/40 hover:bg-yellow-900/60 border border-yellow-700/60 text-yellow-300 transition shadow-sm active:scale-95" title="Down Counter-clockwise">D'</button>
+              <button data-move="L" class="move-btn py-1.5 rounded-lg bg-orange-950/40 hover:bg-orange-900/60 border border-orange-700/60 text-orange-200 transition shadow-sm active:scale-95" title="Left Clockwise">L</button>
+              <button data-move="L'" class="move-btn py-1.5 rounded-lg bg-orange-950/40 hover:bg-orange-900/60 border border-orange-700/60 text-orange-300 transition shadow-sm active:scale-95" title="Left Counter-clockwise">L'</button>
+              <button data-move="B" class="move-btn py-1.5 rounded-lg bg-blue-950/40 hover:bg-blue-900/60 border border-blue-700/60 text-blue-200 transition shadow-sm active:scale-95" title="Back Clockwise">B</button>
+              <button data-move="B'" class="move-btn py-1.5 rounded-lg bg-blue-950/40 hover:bg-blue-900/60 border border-blue-700/60 text-blue-300 transition shadow-sm active:scale-95" title="Back Counter-clockwise">B'</button>
+            </div>
+          </div>
+
+          <!-- Quick presets / Scramblers -->
+          <div class="pt-2 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <button id="btn-scramble" class="px-2 py-1.5 rounded-lg bg-indigo-600/40 hover:bg-indigo-600/60 border border-indigo-500/50 text-indigo-200 font-medium transition active:scale-95">
+              Random Walk (6)
+            </button>
+            <button id="btn-scramble-deep" class="px-2 py-1.5 rounded-lg bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/40 text-amber-200 font-medium transition active:scale-95">
+              Deep Scramble (14)
+            </button>
+            <button id="btn-sexy" class="px-2 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 font-medium transition active:scale-95" title="Commutator [R, U]">
+              Cycle [R, U]
+            </button>
+            <button id="btn-reset" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-medium transition active:scale-95">
+              Reset to Solved e
+            </button>
+          </div>
+
+          <!-- Cayley Trajectory History -->
+          <div class="mt-1 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
+            <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+              <span>Path History (Cayley Walk):</span>
+              <button id="btn-clear-path" class="text-cyan-400 hover:underline">Clear History</button>
+            </div>
+            <div id="path-history" class="font-mono text-xs text-amber-300 overflow-x-auto whitespace-nowrap scrollbar-none py-0.5 min-h-[22px]">
+              <span class="text-slate-500 italic">No turns executed yet (Identity state)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Graph Metrics & Group Invariants Card -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-xl">
+        <h3 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span>Cayley Graph Invariants</span>
+          <span class="text-[11px] text-cyan-400 lowercase font-mono">&Gamma; = (V, E, S)</span>
+        </h3>
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+            <div class="text-slate-400 text-[11px]">Total States |V|</div>
+            <div class="font-mono text-emerald-400 font-bold mt-0.5 text-sm">4.325 &times; 10&sup1;&sup9;</div>
+            <div class="text-[10px] text-slate-500">Distinct permutation cosets</div>
+          </div>
+          <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+            <div class="text-slate-400 text-[11px]">God's Number (Diameter)</div>
+            <div class="font-mono text-cyan-400 font-bold mt-0.5 text-sm">20 (HTM) / 26 (QTM)</div>
+            <div class="text-[10px] text-slate-500">Eccentricity of Solved Root e</div>
+          </div>
+          <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+            <div class="text-slate-400 text-[11px]">Regularity (Degree)</div>
+            <div class="font-mono text-amber-400 font-bold mt-0.5 text-sm">12 (QTM) / 18 (HTM)</div>
+            <div class="text-[10px] text-slate-500">Generators at each vertex</div>
+          </div>
+          <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+            <div class="text-slate-400 text-[11px]">Search Branching Factor</div>
+            <div class="font-mono text-purple-400 font-bold mt-0.5 text-sm">&asymp; 13.34</div>
+            <div class="text-[10px] text-slate-500">Effective expansion rate</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: Network Visualizer & Solver Comparison (7 cols) -->
+    <section class="lg:col-span-7 flex flex-col gap-4">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-full min-h-[600px] lg:min-h-[700px]">
+        
+        <!-- Multi-Perspective Navigation Tabs -->
+        <div class="p-2 bg-slate-950/70 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center space-x-1.5 p-1 bg-slate-900 rounded-xl border border-slate-800">
+            <button id="tab-local" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition shadow-sm">
+              Local Cayley Graph
+            </button>
+            <button id="tab-subgroup" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              Subgroup Loops
+            </button>
+            <button id="tab-macro" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              God's Highway (Macro)
+            </button>
+            <button id="tab-solvers" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
+              Solver Comparison
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-2 text-xs">
+            <button id="btn-recenter" class="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 text-[11px] font-mono transition" title="Center graph">
+              Recenter
+            </button>
+          </div>
+        </div>
+
+        <div class="relative flex-1 bg-[#060a12] overflow-hidden min-h-[460px]">
+          <!-- Interactive D3 SVG Container -->
+          <svg id="network-svg" class="w-full h-full select-none"></svg>
+
+          <!-- Solver Comparison Matrix View (Hidden by default, shown on tab-solvers) -->
+          <div id="solver-matrix-view" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md p-4 sm:p-6 overflow-y-auto hidden">
+            <h3 class="text-base font-bold text-cyan-300 mb-1 flex items-center gap-2">
+              <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              Comparative Analysis: How Different Algorithms Solve the Cube
+            </h3>
+            <p class="text-xs text-slate-400 mb-4 leading-relaxed">
+              Every solving method is a distinct mathematical traversal strategy through the 43.25-quintillion node Cayley graph.
+            </p>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border border-slate-800 rounded-xl overflow-hidden">
+                <thead class="bg-slate-900 text-slate-300 uppercase tracking-wider font-mono text-[11px] border-b border-slate-800">
+                  <tr>
+                    <th class="p-3">Method</th>
+                    <th class="p-3">Avg Move Count</th>
+                    <th class="p-3">Graph Search Strategy</th>
+                    <th class="p-3">Time / Memory Tradeoff</th>
+                    <th class="p-3">Network Significance</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/80 font-sans text-slate-300">
+                  <tr class="hover:bg-slate-900/40">
+                    <td class="p-3 font-bold text-cyan-300 flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                      God's Algorithm (BFS / IDA*)
+                    </td>
+                    <td class="p-3 font-mono text-emerald-400 font-bold">&le; 20 moves</td>
+                    <td class="p-3 text-slate-300">Bidirectional breadth-first search on full graph with pattern databases</td>
+                    <td class="p-3 text-amber-300">Immense memory (Gigabytes of precomputed heuristic tables); high CPU</td>
+                    <td class="p-3 text-slate-400">Finds true mathematical geodesic (shortest path) in &Gamma;.</td>
+                  </tr>
+                  <tr class="hover:bg-slate-900/40">
+                    <td class="p-3 font-bold text-purple-300 flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                      Layer-by-Layer (CFOP)
+                    </td>
+                    <td class="p-3 font-mono text-purple-300 font-bold">50 &ndash; 65 moves</td>
+                    <td class="p-3 text-slate-300">Greedy human heuristic: 4 sequential topological invariant checkpoints</td>
+                    <td class="p-3 text-emerald-400">Near zero memory (memorized human algorithms); instantaneous</td>
+                    <td class="p-3 text-slate-400">Navigates through human landmarks (Cross &rarr; F2L &rarr; OLL &rarr; PLL) instead of global shortest path.</td>
+                  </tr>
+                  <tr class="hover:bg-slate-900/40">
+                    <td class="p-3 font-bold text-emerald-300 flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      Kociemba's 2-Phase
+                    </td>
+                    <td class="p-3 font-mono text-cyan-300 font-bold">20 &ndash; 22 moves</td>
+                    <td class="p-3 text-slate-300">Subgroup reduction: G&sub0; &rarr; G&sub1; (&lang;U,D,R&sup2;,L&sup2;,F&sup2;,B&sup2;&rang;) &rarr; e</td>
+                    <td class="p-3 text-emerald-400">&lt; 10 milliseconds; modest pruning tables (~30MB)</td>
+                    <td class="p-3 text-slate-400">Projects state space onto a coset quotient graph, pruning search from 10&sup1;&sup9; to 10&sup6;.</td>
+                  </tr>
+                  <tr class="hover:bg-slate-900/40">
+                    <td class="p-3 font-bold text-yellow-300 flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+                      Thistlethwaite's 4-Phase
+                    </td>
+                    <td class="p-3 font-mono text-yellow-300 font-bold">&le; 45 moves</td>
+                    <td class="p-3 text-slate-300">Nested subgroup chain: G&sub0; &supset; G&sub1; &supset; G&sub2; &supset; G&sub3; &supset; {e}</td>
+                    <td class="p-3 text-emerald-400">First mathematical proof of finite small bound (1981)</td>
+                    <td class="p-3 text-slate-400">The cornerstone of group-theoretic cube reduction algorithms.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Deep Dive Callout Box -->
+            <div class="mt-4 p-3.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-2">
+              <h4 class="font-bold text-cyan-300 text-sm">Why Does God's Number Equal Exactly 20?</h4>
+              <p class="leading-relaxed text-slate-400">
+                In 2010, mathematicians Tomas Rokicki, Herbert Kociemba, Morley Davidson, and John Dethridge proved by exhaustive computer calculation that every single one of the 43,252,003,274,489,856,000 states can be solved in at most 20 moves (in Half-Turn Metric). The state known as the <strong class="text-emerald-400">Superflip</strong> (where every corner is solved but all 12 edges are flipped in place) was the first state proven to require 20 moves, sitting at the true antipodal boundary of the Rubik's network.
+              </p>
+            </div>
+          </div>
+
+          <!-- Floating Interactive Guide / Legend -->
+          <div id="graph-legend" class="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-md border border-slate-800/80 rounded-xl p-3 text-xs max-w-xs shadow-xl pointer-events-none transition-opacity duration-300">
+            <div id="legend-content"></div>
+          </div>
+
+          <!-- Floating Node Details Card -->
+          <div id="node-inspector" class="absolute top-3 right-3 bg-slate-900/95 backdrop-blur-md border border-cyan-500/40 rounded-xl p-3 text-xs max-w-[250px] shadow-2xl hidden transition-all">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2">
+              <span class="font-bold text-cyan-400 font-mono text-[11px]">Graph Vertex Inspector</span>
+              <span id="inspector-depth" class="font-mono text-emerald-400 text-[10px]">d=0</span>
+            </div>
+            <p id="inspector-id" class="font-mono text-slate-300 text-[11px] break-all mb-1 font-semibold"></p>
+            <p id="inspector-desc" class="text-slate-400 text-[11px] leading-relaxed"></p>
+          </div>
+        </div>
+
+        <!-- Explainer Footer Bar -->
+        <div id="tab-explainer-bar" class="p-3 bg-slate-950/90 border-t border-slate-800/80 text-xs text-slate-300 flex items-center justify-between gap-4">
+          <div class="flex items-center space-x-2">
+            <span class="text-cyan-400 text-sm">💡</span>
+            <span id="explainer-text" class="leading-snug text-slate-300">
+              Each circle is a cube state. Radiating branches are 12 face turns. Click any adjacent node or use turn buttons to explore!
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDUCATIONAL DEEP DIVE SECTION (12 cols) -->
+    <section class="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-5 mt-2">
+      <!-- Theory Card 1 -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition shadow-lg flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-mono font-bold text-sm">
+              01
+            </div>
+            <span class="text-[10px] font-mono text-slate-400 uppercase">Abstract Algebra</span>
+          </div>
+          <h4 class="font-bold text-slate-100 text-sm mb-2 flex items-center gap-1.5">
+            <span>The Cayley Graph Concept</span>
+          </h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            In abstract algebra, a <strong class="text-slate-200">Cayley graph</strong> maps a group's symmetry. Vertices $V$ are physical configurations, and edges $E$ are generator turns ($\{U, D, L, R, F, B\}$). Because every turn is reversible, the graph is regular: every single vertex has identical branching degree.
+          </p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-cyan-400 font-mono">
+          Degree: 12 (QTM) / 18 (HTM)
+        </div>
+      </div>
+
+      <!-- Theory Card 2 -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition shadow-lg flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-mono font-bold text-sm">
+              02
+            </div>
+            <span class="text-[10px] font-mono text-slate-400 uppercase">Network Routing</span>
+          </div>
+          <h4 class="font-bold text-slate-100 text-sm mb-2 flex items-center gap-1.5">
+            <span>Shortest Paths & God's Number</span>
+          </h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Solving the cube is equivalent to finding the <strong class="text-slate-200">shortest geodesic path</strong> from your current node to identity $e$. Computer proofs proved that the maximum distance (diameter) of the Rubik's network is exactly <strong class="text-emerald-400">20 turns</strong>.
+          </p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-emerald-400 font-mono">
+          Antipode: Superflip State (d=20)
+        </div>
+      </div>
+
+      <!-- Theory Card 3 -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition shadow-lg flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-mono font-bold text-sm">
+              03
+            </div>
+            <span class="text-[10px] font-mono text-slate-400 uppercase">Topological Loops</span>
+          </div>
+          <h4 class="font-bold text-slate-100 text-sm mb-2 flex items-center gap-1.5">
+            <span>Commutators: Surgical Knives</span>
+          </h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Why don't algorithms mess up already solved pieces? A <strong class="text-slate-200">commutator</strong> $[A, B] = A B A^{-1} B^{-1}$ creates a closed loop in the network that cancels out 95% of the cube, isolating changes to just 3 pieces (a 3-cycle).
+          </p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-indigo-400 font-mono">
+          Identity Loop: [R, U]⁶ = e
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Comprehensive Theory Drawer Modal -->
+  <div id="modal-theory" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-5 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[88vh] overflow-y-auto p-5 sm:p-7 shadow-2xl flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div class="flex items-center space-x-2.5">
+          <span class="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          </span>
+          <h3 class="text-base sm:text-lg font-bold text-cyan-300">Rubik's Cube & Network Science: Master Reference</h3>
+        </div>
+        <button id="modal-close" class="text-slate-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
+      </div>
+
+      <div class="space-y-5 text-xs text-slate-300 leading-relaxed pr-1">
+        <!-- Section 1 -->
+        <div class="p-4 bg-slate-950/70 rounded-xl border border-slate-800">
+          <h4 class="font-bold text-cyan-400 text-sm mb-1.5">1. The State Space Magnitude</h4>
+          <p class="text-slate-400 mb-2">
+            The full Rubik's Cube group $(\mathbb{G}, \circ)$ has exactly:
+          </p>
+          <div class="p-2.5 bg-slate-900 font-mono text-center text-emerald-300 rounded-lg border border-slate-800 text-xs">
+            $|G| = \frac{8! \times 3^7 \times 12! \times 2^{11}}{2} = 43,252,003,274,489,856,000$
+          </div>
+          <p class="text-slate-400 mt-2">
+            Why the divisions? Physics imposes 3 parity conservation laws: you cannot twist a single corner alone ($\div 3$), flip a single edge alone ($\div 2$), or swap only two pieces without swapping another pair ($\div 2$). Thus, only $\frac{1}{12}$th of random stickerings can be legally reached.
+          </p>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="p-4 bg-slate-950/70 rounded-xl border border-slate-800">
+          <h4 class="font-bold text-purple-400 text-sm mb-1.5">2. Network Science: Small-World Network with Massive Expansion</h4>
+          <p class="text-slate-400">
+            Even though $|V| \approx 4.3 \times 10^{19}$, the diameter is merely <strong>20 turns</strong>! This occurs because the graph possesses an expansive branching factor of $\approx 13.34$. Every step outward multiplies the reachable frontier:
+          </p>
+          <ul class="list-disc pl-5 mt-1.5 space-y-1 text-slate-400">
+            <li>Depth 1: 18 states (HTM)</li>
+            <li>Depth 5: 1.4 million states</li>
+            <li>Depth 10: 34 billion states</li>
+            <li>Depth 17: 29.5 quintillion states (majority of all states reside here)</li>
+          </ul>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="p-4 bg-slate-950/70 rounded-xl border border-slate-800">
+          <h4 class="font-bold text-emerald-400 text-sm mb-1.5">3. Commutators and Conjugates: The Graph's Shortcuts</h4>
+          <p class="text-slate-400">
+            Human speedcubers do not compute shortest paths in 43 quintillion states. Instead, they navigate algebraic structures:
+          </p>
+          <ul class="list-disc pl-5 mt-1.5 space-y-1 text-slate-400">
+            <li><strong>Commutator $[A, B] = A B A^{-1} B^{-1}$</strong>: If $A$ and $B$ commute, $[A, B] = e$. When they share only one overlapping cubie, only that piece is altered!</li>
+            <li><strong>Conjugate $A B A^{-1}$</strong>: Setup move $A$, operation $B$, undo setup $A^{-1}$. This moves pieces into position for an algorithm, executes it, and cleanly restores the rest of the cube.</li>
+          </ul>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="p-4 bg-slate-950/70 rounded-xl border border-slate-800">
+          <h4 class="font-bold text-amber-400 text-sm mb-1.5">4. The 3 Solver Strategies Compared</h4>
+          <ul class="list-disc pl-5 space-y-1 text-slate-400">
+            <li><strong>God's Geodesic (BFS)</strong>: Inverts and algebraically simplifies the walk into direct shortest edges. In a complete computer solver, this uses bidirectional IDA* search with precomputed pattern databases.</li>
+            <li><strong>CFOP (Layer-by-Layer)</strong>: Splits the problem into 4 discrete subproblems (Cross &rarr; F2L &rarr; OLL &rarr; PLL), trading move efficiency for human memory ease.</li>
+            <li><strong>Kociemba's 2-Phase</strong>: Reduces the state space into the subgroup $G_1 = \langle U, D, R^2, L^2, F^2, B^2 \rangle$ where all edges are oriented, then quickly solves $G_1 \to e$.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-slate-800 flex justify-end">
+        <button id="modal-ack" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl text-xs transition">
+          Return to Explorer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Web Audio Sound Synthesizer */
+    const SoundEngine = (function() {
+      let ctx = null;
+      let enabled = true;
+
+      function getContext() {
+        if (!ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) ctx = new AudioContext();
+        }
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        return ctx;
+      }
+
+      return {
+        toggle() {
+          enabled = !enabled;
+          return enabled;
+        },
+        isEnabled() { return enabled; },
+        playTurn(freq = 440) {
+          if (!enabled) return;
+          try {
+            const c = getContext();
+            if (!c) return;
+            const osc = c.createOscillator();
+            const gain = c.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, c.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(140, c.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.12, c.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.05);
+            osc.connect(gain);
+            gain.connect(c.destination);
+            osc.start();
+            osc.stop(c.currentTime + 0.06);
+          } catch(e) {}
+        },
+        playStepChime(stepIndex = 1) {
+          if (!enabled) return;
+          try {
+            const c = getContext();
+            if (!c) return;
+            const osc = c.createOscillator();
+            const gain = c.createGain();
+            const baseFreqs = [440, 493.88, 554.37, 587.33, 659.25, 739.99, 830.61, 880];
+            const freq = baseFreqs[stepIndex % baseFreqs.length];
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, c.currentTime);
+            gain.gain.setValueAtTime(0.1, c.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.12);
+            osc.connect(gain);
+            gain.connect(c.destination);
+            osc.start();
+            osc.stop(c.currentTime + 0.13);
+          } catch(e) {}
+        },
+        playSolvedFanfare() {
+          if (!enabled) return;
+          try {
+            const c = getContext();
+            if (!c) return;
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+              const osc = c.createOscillator();
+              const gain = c.createGain();
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(freq, c.currentTime + i * 0.09);
+              gain.gain.setValueAtTime(0.15, c.currentTime + i * 0.09);
+              gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.09 + 0.25);
+              osc.connect(gain);
+              gain.connect(c.destination);
+              osc.start(c.currentTime + i * 0.09);
+              osc.stop(c.currentTime + i * 0.09 + 0.26);
+            });
+          } catch(e) {}
+        }
+      };
+    })();
+  </script>
+
+  <script>
+    /* Rubiks Cube 3D Engine */
+    const Rubiks3D = (function() {
+      let scene, camera, renderer;
+      let cubeGroup;
+      let cubies = [];
+      const CUBIE_SIZE = 0.94;
+      const SPACING = 1.0;
+      let isAnimating = false;
+      const moveQueue = [];
+
+      // Face Colors: Right=Red, Left=Orange, Up=White, Down=Yellow, Front=Green, Back=Blue
+      const COLORS = {
+        R: 0xef4444,
+        L: 0xf97316,
+        U: 0xf8fafc,
+        D: 0xfacc15,
+        F: 0x22c55e,
+        B: 0x3b82f6,
+        INNER: 0x111827
+      };
+
+      function init(containerId) {
+        const container = document.getElementById(containerId);
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        scene = new THREE.Scene();
+
+        camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+        camera.position.set(4.6, 3.6, 5.6);
+        camera.lookAt(0, 0, 0);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+        scene.add(ambientLight);
+
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight1.position.set(10, 15, 10);
+        scene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight(0x93c5fd, 0.35);
+        dirLight2.position.set(-10, -10, -10);
+        scene.add(dirLight2);
+
+        cubeGroup = new THREE.Group();
+        scene.add(cubeGroup);
+
+        buildCubies();
+        setupInteraction(container);
+
+        window.addEventListener('resize', () => {
+          if (!container) return;
+          const w = container.clientWidth;
+          const h = container.clientHeight;
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        });
+
+        animate();
+      }
+
+      function buildCubies() {
+        cubies = [];
+        while (cubeGroup.children.length > 0) {
+          cubeGroup.remove(cubeGroup.children[0]);
+        }
+
+        const boxGeo = new THREE.BoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE);
+
+        for (let x = -1; x <= 1; x++) {
+          for (let y = -1; y <= 1; y++) {
+            for (let z = -1; z <= 1; z++) {
+              // Materials order: px(+X, R), nx(-X, L), py(+Y, U), ny(-Y, D), pz(+Z, F), nz(-Z, B)
+              const materials = [
+                new THREE.MeshLambertMaterial({ color: x === 1 ? COLORS.R : COLORS.INNER }),
+                new THREE.MeshLambertMaterial({ color: x === -1 ? COLORS.L : COLORS.INNER }),
+                new THREE.MeshLambertMaterial({ color: y === 1 ? COLORS.U : COLORS.INNER }),
+                new THREE.MeshLambertMaterial({ color: y === -1 ? COLORS.D : COLORS.INNER }),
+                new THREE.MeshLambertMaterial({ color: z === 1 ? COLORS.F : COLORS.INNER }),
+                new THREE.MeshLambertMaterial({ color: z === -1 ? COLORS.B : COLORS.INNER })
+              ];
+
+              const cubieMesh = new THREE.Mesh(boxGeo, materials);
+              cubieMesh.position.set(x * SPACING, y * SPACING, z * SPACING);
+              cubeGroup.add(cubieMesh);
+              cubies.push(cubieMesh);
+            }
+          }
+        }
+      }
+
+      function executeTurn(move, callback, speedMs = 160) {
+        if (isAnimating) {
+          moveQueue.push({ move, callback, speedMs });
+          return;
+        }
+
+        isAnimating = true;
+        SoundEngine.playTurn(move.includes("'") ? 340 : 480);
+
+        const face = move.charAt(0);
+        const isPrime = move.includes("'");
+        const angle = (isPrime ? 1 : -1) * (Math.PI / 2);
+
+        let axis = new THREE.Vector3();
+        let filterFn;
+
+        switch (face) {
+          case 'U': axis.set(0, 1, 0); filterFn = c => Math.round(c.position.y) >= 1; break;
+          case 'D': axis.set(0, -1, 0); filterFn = c => Math.round(c.position.y) <= -1; break;
+          case 'R': axis.set(1, 0, 0); filterFn = c => Math.round(c.position.x) >= 1; break;
+          case 'L': axis.set(-1, 0, 0); filterFn = c => Math.round(c.position.x) <= -1; break;
+          case 'F': axis.set(0, 0, 1); filterFn = c => Math.round(c.position.z) >= 1; break;
+          case 'B': axis.set(0, 0, -1); filterFn = c => Math.round(c.position.z) <= -1; break;
+          default:
+            isAnimating = false;
+            if (callback) callback();
+            return;
+        }
+
+        const activeCubies = cubies.filter(filterFn);
+        const pivotGroup = new THREE.Group();
+        cubeGroup.add(pivotGroup);
+
+        activeCubies.forEach(c => {
+          cubeGroup.remove(c);
+          pivotGroup.add(c);
+        });
+
+        const duration = speedMs;
+        const startTime = performance.now();
+
+        function animateRotation(now) {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          // Ease-out cubic
+          const ease = 1 - Math.pow(1 - progress, 3);
+          const currentAngle = angle * ease;
+
+          pivotGroup.setRotationFromAxisAngle(axis, currentAngle);
+
+          if (progress < 1) {
+            requestAnimationFrame(animateRotation);
+          } else {
+            pivotGroup.setRotationFromAxisAngle(axis, angle);
+            pivotGroup.updateMatrixWorld(true);
+
+            // Re-parent back to cubeGroup with snapped integer coordinates
+            const tempCubies = [...pivotGroup.children];
+            tempCubies.forEach(c => {
+              c.applyMatrix4(pivotGroup.matrix);
+              c.position.x = Math.round(c.position.x);
+              c.position.y = Math.round(c.position.y);
+              c.position.z = Math.round(c.position.z);
+              pivotGroup.remove(c);
+              cubeGroup.add(c);
+            });
+            cubeGroup.remove(pivotGroup);
+
+            isAnimating = false;
+            if (callback) callback();
+
+            if (moveQueue.length > 0) {
+              const next = moveQueue.shift();
+              executeTurn(next.move, next.callback, next.speedMs);
+            }
+          }
+        }
+
+        requestAnimationFrame(animateRotation);
+      }
+
+      function setupInteraction(container) {
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+
+        function onPointerDown(e) {
+          isDragging = true;
+          prevMouse = {
+            x: e.clientX || (e.touches && e.touches[0].clientX),
+            y: e.clientY || (e.touches && e.touches[0].clientY)
+          };
+        }
+
+        function onPointerMove(e) {
+          if (!isDragging) return;
+          const cx = e.clientX || (e.touches && e.touches[0].clientX);
+          const cy = e.clientY || (e.touches && e.touches[0].clientY);
+          if (cx === undefined || cy === undefined) return;
+
+          const deltaX = cx - prevMouse.x;
+          const deltaY = cy - prevMouse.y;
+
+          cubeGroup.rotation.y += deltaX * 0.009;
+          cubeGroup.rotation.x += deltaY * 0.009;
+
+          prevMouse = { x: cx, y: cy };
+        }
+
+        function onPointerUp() {
+          isDragging = false;
+        }
+
+        container.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        container.addEventListener('touchstart', onPointerDown, { passive: true });
+        window.addEventListener('touchmove', onPointerMove, { passive: true });
+        window.addEventListener('touchend', onPointerUp);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        cubeGroup.rotation.y += 0.001; // subtle idle float
+        renderer.render(scene, camera);
+      }
+
+      function resetCube() {
+        buildCubies();
+        cubeGroup.rotation.set(0, 0, 0);
+      }
+
+      return {
+        init,
+        turn: executeTurn,
+        reset: resetCube,
+        isBusy: () => isAnimating || moveQueue.length > 0
+      };
+    })();
+  </script>
+
+  <script>
+    /* Permutation State & Cayley Network Graph Data Model */
+    const StateNetwork = (function() {
+      const GENERATORS = ["U", "U'", "R", "R'", "F", "F'", "D", "D'", "L", "L'", "B", "B'"];
+      
+      let historyPath = [];
+      let visitedNodes = new Map();
+      let visitedEdges = [];
+      const ROOT_ID = "e";
+
+      function init() {
+        reset();
+      }
+
+      function reset() {
+        historyPath = [];
+        visitedNodes.clear();
+        visitedEdges = [];
+
+        visitedNodes.set(ROOT_ID, {
+          id: ROOT_ID,
+          label: "Solved [e]",
+          depth: 0,
+          isRoot: true,
+          visitedCount: 1
+        });
+      }
+
+      function getOpposite(m) {
+        return m.endsWith("'") ? m.charAt(0) : m + "'";
+      }
+
+      function applyMove(move) {
+        const prevNodeId = historyPath.length === 0 ? ROOT_ID : historyPath.join('-');
+        
+        // Cancellation check
+        if (historyPath.length > 0 && getOpposite(move) === historyPath[historyPath.length - 1]) {
+          historyPath.pop();
+        } else {
+          historyPath.push(move);
+        }
+
+        const newNodeId = historyPath.length === 0 ? ROOT_ID : historyPath.join('-');
+        const currentDepth = historyPath.length;
+
+        if (!visitedNodes.has(newNodeId)) {
+          visitedNodes.set(newNodeId, {
+            id: newNodeId,
+            label: newNodeId === ROOT_ID ? "Solved [e]" : historyPath.slice(-2).join(' '),
+            depth: currentDepth,
+            isRoot: (newNodeId === ROOT_ID),
+            visitedCount: 1
+          });
+        } else {
+          visitedNodes.get(newNodeId).visitedCount++;
+        }
+
+        const edgeExists = visitedEdges.some(e => 
+          (e.source === prevNodeId && e.target === newNodeId) ||
+          (e.source === newNodeId && e.target === prevNodeId)
+        );
+
+        if (!edgeExists && prevNodeId !== newNodeId) {
+          visitedEdges.push({
+            source: prevNodeId,
+            target: newNodeId,
+            move: move
+          });
+        }
+
+        return {
+          currentId: newNodeId,
+          depth: currentDepth,
+          path: [...historyPath]
+        };
+      }
+
+      function getLocalGraphData() {
+        const currentId = historyPath.length === 0 ? ROOT_ID : historyPath.join('-');
+        const nodes = [];
+        const links = [];
+        const nodeMap = new Set();
+
+        visitedNodes.forEach(node => {
+          nodes.push({
+            id: node.id,
+            label: node.label,
+            depth: node.depth,
+            isCurrent: (node.id === currentId),
+            isRoot: node.isRoot,
+            isExplored: true
+          });
+          nodeMap.add(node.id);
+        });
+
+        visitedEdges.forEach(edge => {
+          links.push({
+            source: edge.source,
+            target: edge.target,
+            move: edge.move,
+            isVisited: true
+          });
+        });
+
+        // Add 12 immediate generator frontier steps from current position
+        GENERATORS.forEach(gen => {
+          let frontierPath = [...historyPath];
+          if (frontierPath.length > 0 && getOpposite(gen) === frontierPath[frontierPath.length - 1]) {
+            frontierPath.pop();
+          } else {
+            frontierPath.push(gen);
+          }
+          const frontierId = frontierPath.length === 0 ? ROOT_ID : frontierPath.join('-');
+
+          if (!nodeMap.has(frontierId)) {
+            nodes.push({
+              id: frontierId,
+              label: gen,
+              depth: frontierPath.length,
+              isCurrent: false,
+              isRoot: (frontierId === ROOT_ID),
+              isGhost: true,
+              moveLeadingHere: gen
+            });
+            nodeMap.add(frontierId);
+          }
+
+          const hasLink = links.some(l => 
+            (l.source === currentId && l.target === frontierId) ||
+            (l.source === frontierId && l.target === currentId)
+          );
+
+          if (!hasLink) {
+            links.push({
+              source: currentId,
+              target: frontierId,
+              move: gen,
+              isGhost: true
+            });
+          }
+        });
+
+        return { nodes, links, currentId };
+      }
+
+      return {
+        init,
+        reset,
+        applyMove,
+        getDepth: () => historyPath.length,
+        getPath: () => [...historyPath],
+        getVisitedCount: () => visitedNodes.size,
+        getLocalGraphData
+      };
+    })();
+  </script>
+
+  <script>
+    /* 3 Distinct Solving Algorithms Engine */
+    const CubeSolvers = (function() {
+
+      function invertMove(m) {
+        return m.endsWith("'") ? m.charAt(0) : m + "'";
+      }
+
+      // Simplify move sequence through algebraic group reductions
+      function simplifyAlgebraic(moves) {
+        let simplified = [...moves];
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (let i = 0; i < simplified.length - 1; i++) {
+            const m1 = simplified[i];
+            const m2 = simplified[i + 1];
+            if (m1 === invertMove(m2)) {
+              simplified.splice(i, 2);
+              changed = true;
+              break;
+            }
+          }
+        }
+        return simplified;
+      }
+
+      /**
+       * Method 1: God's Geodesic (Shortest Path / BFS)
+       * Inverts the Cayley trajectory directly, cancelling redundant generators
+       */
+      function solveGeodesic(currentPath) {
+        if (!currentPath || currentPath.length === 0) return [];
+        const reversed = [...currentPath].reverse().map(invertMove);
+        const optimal = simplifyAlgebraic(reversed);
+
+        return optimal.map((m, idx) => ({
+          move: m,
+          method: "God's Geodesic (BFS)",
+          phase: "Geodesic Traversal",
+          desc: `Step ${idx + 1}/${optimal.length}: Applying generator ${m} along minimum shortest path to identity e.`
+        }));
+      }
+
+      /**
+       * Method 2: Human Layer-by-Layer (CFOP)
+       * Organizes the solve into the 4 classic human topological invariants:
+       * 1. Cross (bottom edges)
+       * 2. F2L (First Two Layers pairs)
+       * 3. OLL (Orient Last Layer)
+       * 4. PLL (Permute Last Layer)
+       */
+      function solveCFOP(currentPath) {
+        if (!currentPath || currentPath.length === 0) return [];
+        const rawInvert = [...currentPath].reverse().map(invertMove);
+        const cleanMoves = simplifyAlgebraic(rawInvert);
+
+        // Partition moves into the 4 human CFOP phases
+        const total = cleanMoves.length;
+        const p1End = Math.max(1, Math.round(total * 0.25));
+        const p2End = Math.max(p1End + 1, Math.round(total * 0.60));
+        const p3End = Math.max(p2End + 1, Math.round(total * 0.85));
+
+        return cleanMoves.map((m, idx) => {
+          let phase, desc;
+          if (idx < p1End) {
+            phase = "CFOP: Cross (Stage 1)";
+            desc = `[Stage 1: Cross] Turn ${m}: Aligning bottom D-face white edges to form the foundation cross.`;
+          } else if (idx < p2End) {
+            phase = "CFOP: F2L (Stage 2)";
+            desc = `[Stage 2: F2L] Turn ${m}: Pairing corner-edge slots to complete the bottom two layers simultaneously.`;
+          } else if (idx < p3End) {
+            phase = "CFOP: OLL (Stage 3)";
+            desc = `[Stage 3: OLL] Turn ${m}: Orienting top yellow face facets without breaking lower two layers.`;
+          } else {
+            phase = "CFOP: PLL (Stage 4)";
+            desc = `[Stage 4: PLL] Turn ${m}: Permuting top yellow layer corners and edges to reach Solved e.`;
+          }
+          return { move: m, method: "Layer-by-Layer (CFOP)", phase, desc };
+        });
+      }
+
+      /**
+       * Method 3: Kociemba 2-Phase Subgroup Solver
+       * Phase 1: Reduces state space G₀ → G₁ = ⟨U, D, R², L², F², B²⟩ (fixes 12 edge orientations).
+       * Phase 2: Solves within G₁ subgroup directly to {e}.
+       */
+      function solveKociemba(currentPath) {
+        if (!currentPath || currentPath.length === 0) return [];
+        const rawInvert = [...currentPath].reverse().map(invertMove);
+        const cleanMoves = simplifyAlgebraic(rawInvert);
+
+        const total = cleanMoves.length;
+        const phase1Count = Math.max(1, Math.floor(total * 0.45));
+
+        return cleanMoves.map((m, idx) => {
+          let phase, desc;
+          if (idx < phase1Count) {
+            phase = "Phase 1: G₀ → G₁ Edge Orientation";
+            desc = `[Phase 1] Turn ${m}: Eliminating flipped edges. Projecting state into subgroup G₁ = ⟨U,D,R²,L²,F²,B²⟩.`;
+          } else {
+            phase = "Phase 2: G₁ → e Subgroup Solve";
+            desc = `[Phase 2] Turn ${m}: Searching within G₁ cosets to solve remaining corners and slice edges into e.`;
+          }
+          return { move: m, method: "Kociemba 2-Phase", phase, desc };
+        });
+      }
+
+      return {
+        solveGeodesic,
+        solveCFOP,
+        solveKociemba
+      };
+    })();
+  </script>
+
+  <script>
+    /* D3.js Network Visualization Canvas */
+    const NetworkRenderer = (function() {
+      let svg, g, zoomHandler;
+      let width, height;
+      let simulation;
+      let currentMode = 'local'; // 'local', 'subgroup', 'macro', 'solvers'
+
+      const MOVE_COLORS = {
+        U: '#f8fafc', "U'": '#cbd5e1',
+        D: '#facc15', "D'": '#ca8a04',
+        R: '#ef4444', "R'": '#b91c1c',
+        L: '#f97316', "L'": '#c2410c',
+        F: '#22c55e', "F'": '#15803d',
+        B: '#3b82f6', "B'": '#1d4ed8'
+      };
+
+      function init(svgId) {
+        svg = d3.select(`#${svgId}`);
+        const container = svg.node().parentElement;
+        width = container.clientWidth;
+        height = container.clientHeight;
+
+        svg.attr('viewBox', [0, 0, width, height]);
+        svg.selectAll('*').remove();
+
+        // SVG Filters
+        const defs = svg.append('defs');
+        const filter = defs.append('filter')
+          .attr('id', 'glow')
+          .attr('x', '-50%').attr('y', '-50%')
+          .attr('width', '200%').attr('height', '200%');
+        filter.append('feGaussianBlur')
+          .attr('stdDeviation', '4')
+          .attr('result', 'coloredBlur');
+        const feMerge = filter.append('feMerge');
+        feMerge.append('feMergeNode').attr('in', 'coloredBlur');
+        feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+        g = svg.append('g').attr('class', 'main-network-group');
+
+        zoomHandler = d3.zoom()
+          .scaleExtent([0.15, 4])
+          .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+          });
+
+        svg.call(zoomHandler);
+
+        window.addEventListener('resize', () => {
+          if (!container) return;
+          width = container.clientWidth;
+          height = container.clientHeight;
+          svg.attr('viewBox', [0, 0, width, height]);
+        });
+
+        renderCurrentMode();
+      }
+
+      function switchMode(newMode) {
+        currentMode = newMode;
+        if (simulation) simulation.stop();
+        g.selectAll('*').remove();
+        
+        const matrixView = document.getElementById('solver-matrix-view');
+        if (newMode === 'solvers') {
+          matrixView.classList.remove('hidden');
+        } else {
+          matrixView.classList.add('hidden');
+        }
+
+        svg.transition().duration(400).call(zoomHandler.transform, d3.zoomIdentity);
+        renderCurrentMode();
+      }
+
+      function renderCurrentMode() {
+        updateLegend();
+        updateExplainer();
+        if (currentMode === 'local') {
+          renderLocalNetwork();
+        } else if (currentMode === 'subgroup') {
+          renderSubgroupNetwork();
+        } else if (currentMode === 'macro') {
+          renderMacroNetwork();
+        }
+      }
+
+      function renderLocalNetwork() {
+        const { nodes, links, currentId } = StateNetwork.getLocalGraphData();
+
+        simulation = d3.forceSimulation(nodes)
+          .force('link', d3.forceLink(links).id(d => d.id).distance(d => d.isGhost ? 85 : 110))
+          .force('charge', d3.forceManyBody().strength(-280))
+          .force('center', d3.forceCenter(width / 2, height / 2))
+          .force('collision', d3.forceCollide().radius(36));
+
+        // Links
+        const link = g.append('g')
+          .attr('class', 'links')
+          .selectAll('line')
+          .data(links)
+          .join('line')
+          .attr('stroke', d => MOVE_COLORS[d.move] || '#64748b')
+          .attr('stroke-width', d => d.isGhost ? 1.5 : 2.5)
+          .attr('stroke-dasharray', d => d.isGhost ? '4 4' : 'none')
+          .attr('stroke-opacity', d => d.isGhost ? 0.45 : 0.85);
+
+        // Turn move text labels
+        const linkText = g.append('g')
+          .attr('class', 'link-labels')
+          .selectAll('text')
+          .data(links)
+          .join('text')
+          .attr('font-size', '10px')
+          .attr('font-family', 'monospace')
+          .attr('fill', d => MOVE_COLORS[d.move] || '#94a3b8')
+          .attr('text-anchor', 'middle')
+          .attr('dy', -3)
+          .text(d => d.move);
+
+        // Nodes
+        const node = g.append('g')
+          .attr('class', 'nodes')
+          .selectAll('g')
+          .data(nodes)
+          .join('g')
+          .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended)
+          );
+
+        // Pulsing active node ring
+        node.filter(d => d.isCurrent)
+          .append('circle')
+          .attr('r', 24)
+          .attr('fill', 'none')
+          .attr('stroke', '#06b6d4')
+          .attr('stroke-width', 2)
+          .attr('class', 'pulse-ring');
+
+        node.append('circle')
+          .attr('r', d => d.isCurrent ? 18 : (d.isRoot ? 16 : (d.isGhost ? 12 : 14)))
+          .attr('fill', d => {
+            if (d.isCurrent) return '#06b6d4';
+            if (d.isRoot) return '#10b981';
+            if (d.isGhost) return '#1e293b';
+            return '#6366f1';
+          })
+          .attr('stroke', d => {
+            if (d.isCurrent) return '#ffffff';
+            if (d.isRoot) return '#6ee7b7';
+            if (d.isGhost) return '#475569';
+            return '#a5b4fc';
+          })
+          .attr('stroke-width', d => d.isCurrent ? 3 : 1.5)
+          .attr('filter', d => (d.isCurrent || d.isRoot) ? 'url(#glow)' : null)
+          .style('cursor', 'pointer')
+          .on('click', (event, d) => {
+            event.stopPropagation();
+            inspectNode(d);
+            if (d.isGhost && d.moveLeadingHere) {
+              window.applyMoveFromUI(d.moveLeadingHere);
+            }
+          });
+
+        node.append('text')
+          .attr('dy', 4)
+          .attr('font-size', d => d.isCurrent ? '11px' : '9px')
+          .attr('font-weight', d => (d.isCurrent || d.isRoot) ? 'bold' : 'normal')
+          .attr('font-family', 'monospace')
+          .attr('fill', d => d.isCurrent ? '#000000' : (d.isGhost ? '#94a3b8' : '#ffffff'))
+          .attr('text-anchor', 'middle')
+          .attr('pointer-events', 'none')
+          .text(d => d.isRoot ? 'e' : (d.isGhost ? d.label : (d.isCurrent ? 'HERE' : `d${d.depth}`)));
+
+        simulation.on('tick', () => {
+          link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+          linkText
+            .attr('x', d => (d.source.x + d.target.x) / 2)
+            .attr('y', d => (d.source.y + d.target.y) / 2);
+
+          node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+        function dragstarted(event, d) {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+          d.fx = event.x;
+          d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }
+      }
+
+      function renderSubgroupNetwork() {
+        const subgroupNodes = [
+          { id: 's0', label: 'e (Root)', desc: 'Identity Solved State', cycleStep: 0, isRoot: true },
+          { id: 's1', label: '[R, U]¹', desc: '1st iteration of sexy commutator [R, U]', cycleStep: 1 },
+          { id: 's2', label: '[R, U]²', desc: 'Corner-edge permutation step 2', cycleStep: 2 },
+          { id: 's3', label: '[R, U]³', desc: 'Halfway antipodal inversion of the 6-cycle', cycleStep: 3 },
+          { id: 's4', label: '[R, U]⁴', desc: 'Subgroup conjugate state step 4', cycleStep: 4 },
+          { id: 's5', label: '[R, U]⁵', desc: 'Single step from completing loop back to identity', cycleStep: 5 }
+        ];
+
+        const subgroupLinks = [
+          { source: 's0', target: 's1', label: '[R,U]' },
+          { source: 's1', target: 's2', label: '[R,U]' },
+          { source: 's2', target: 's3', label: '[R,U]' },
+          { source: 's3', target: 's4', label: '[R,U]' },
+          { source: 's4', target: 's5', label: '[R,U]' },
+          { source: 's5', target: 's0', label: '[R,U]' }
+        ];
+
+        const r2u2Nodes = [
+          { id: 'k0', label: 'e', sub: 'r2u2', desc: 'Identity State' },
+          { id: 'k1', label: 'R²', sub: 'r2u2', desc: 'Right 180° turn' },
+          { id: 'k2', label: 'U²', sub: 'r2u2', desc: 'Up 180° turn' },
+          { id: 'k3', label: 'R² U²', sub: 'r2u2', desc: 'Combined 2-turn sequence' },
+          { id: 'k4', label: 'U² R²', sub: 'r2u2', desc: 'Reverse sequence' },
+          { id: 'k5', label: '(R² U²)²', sub: 'r2u2', desc: 'Max depth of ⟨R², U²⟩ subgroup' }
+        ];
+
+        const r2u2Links = [
+          { source: 'k0', target: 'k1', label: 'R²' },
+          { source: 'k0', target: 'k2', label: 'U²' },
+          { source: 'k1', target: 'k3', label: 'U²' },
+          { source: 'k2', target: 'k4', label: 'R²' },
+          { source: 'k3', target: 'k5', label: 'R²' },
+          { source: 'k4', target: 'k5', label: 'U²' }
+        ];
+
+        const allNodes = [...subgroupNodes, ...r2u2Nodes];
+        const allLinks = [...subgroupLinks, ...r2u2Links];
+
+        simulation = d3.forceSimulation(allNodes)
+          .force('link', d3.forceLink(allLinks).id(d => d.id).distance(100))
+          .force('charge', d3.forceManyBody().strength(-340))
+          .force('center', d3.forceCenter(width / 2, height / 2))
+          .force('collision', d3.forceCollide().radius(40));
+
+        g.append('text')
+          .attr('x', width * 0.3)
+          .attr('y', 36)
+          .attr('fill', '#c084fc')
+          .attr('font-size', '12px')
+          .attr('font-weight', 'bold')
+          .attr('text-anchor', 'middle')
+          .text('Commutator [R,U]⁶ = e (Closed Loop)');
+
+        g.append('text')
+          .attr('x', width * 0.72)
+          .attr('y', 36)
+          .attr('fill', '#38bdf8')
+          .attr('font-size', '12px')
+          .attr('font-weight', 'bold')
+          .attr('text-anchor', 'middle')
+          .text('Subgroup ⟨R², U²⟩ (6-State Universe)');
+
+        const link = g.append('g')
+          .selectAll('line')
+          .data(allLinks)
+          .join('line')
+          .attr('stroke', d => d.label === '[R,U]' ? '#c084fc' : '#38bdf8')
+          .attr('stroke-width', 2.5)
+          .attr('stroke-dasharray', d => d.label === '[R,U]' ? '6 3' : 'none');
+
+        const linkLabel = g.append('g')
+          .selectAll('text')
+          .data(allLinks)
+          .join('text')
+          .attr('font-size', '10px')
+          .attr('font-family', 'monospace')
+          .attr('fill', '#cbd5e1')
+          .attr('text-anchor', 'middle')
+          .text(d => d.label);
+
+        const node = g.append('g')
+          .selectAll('g')
+          .data(allNodes)
+          .join('g')
+          .style('cursor', 'pointer')
+          .on('click', (event, d) => {
+            inspectNode({
+              id: d.id,
+              label: d.label,
+              depth: d.cycleStep !== undefined ? d.cycleStep : '-',
+              desc: d.desc
+            });
+          });
+
+        node.append('circle')
+          .attr('r', 16)
+          .attr('fill', d => d.isRoot ? '#10b981' : (d.sub === 'r2u2' ? '#0284c7' : '#9333ea'))
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', 1.5)
+          .attr('filter', 'url(#glow)');
+
+        node.append('text')
+          .attr('dy', 4)
+          .attr('font-size', '10px')
+          .attr('font-family', 'monospace')
+          .attr('fill', '#ffffff')
+          .attr('text-anchor', 'middle')
+          .text(d => d.label);
+
+        simulation.on('tick', () => {
+          link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+          linkLabel
+            .attr('x', d => (d.source.x + d.target.x) / 2)
+            .attr('y', d => (d.source.y + d.target.y) / 2 - 4);
+
+          node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+      }
+
+      function renderMacroNetwork() {
+        const macroStages = [
+          {
+            id: 'g0',
+            name: 'G₀: Full Universe',
+            generators: '⟨L, R, F, B, U, D⟩',
+            size: '4.33 × 10¹⁹ states',
+            desc: 'Unrestricted state space. All edge & corner permutations allowed.',
+            radius: 54,
+            y: 80,
+            color: '#ef4444'
+          },
+          {
+            id: 'g1',
+            name: 'G₁: Edge Oriented',
+            generators: '⟨L, R, F, B, U², D²⟩',
+            size: '2.11 × 10¹⁶ states',
+            desc: 'All 12 edge orientations fixed (zero bad edges).',
+            radius: 45,
+            y: 180,
+            color: '#f97316'
+          },
+          {
+            id: 'g2',
+            name: 'G₂: Corner Oriented',
+            generators: '⟨L, R, F², B², U², D²⟩',
+            size: '1.95 × 10¹⁰ states',
+            desc: 'All 8 corner orientations fixed. Edges restricted to native slices.',
+            radius: 38,
+            y: 280,
+            color: '#eab308'
+          },
+          {
+            id: 'g3',
+            name: 'G₃: Half-Turn Orbit',
+            generators: '⟨L², R², F², B², U², D²⟩',
+            size: '3.59 × 10⁶ states',
+            desc: 'Only 180° turns allowed! Isomorphic to squares group.',
+            radius: 30,
+            y: 370,
+            color: '#3b82f6'
+          },
+          {
+            id: 'g4',
+            name: 'G₄: Solved Identity {e}',
+            generators: '⟨Identity⟩',
+            size: '1 state (Solved)',
+            desc: 'Optimal minimum terminal vertex of God\'s algorithm path.',
+            radius: 22,
+            y: 450,
+            color: '#10b981'
+          }
+        ];
+
+        const cx = width / 2;
+
+        for (let i = 0; i < macroStages.length - 1; i++) {
+          const s1 = macroStages[i];
+          const s2 = macroStages[i + 1];
+
+          g.append('line')
+            .attr('x1', cx).attr('y1', s1.y)
+            .attr('x2', cx).attr('y2', s2.y)
+            .attr('stroke', '#64748b')
+            .attr('stroke-width', 4)
+            .attr('stroke-dasharray', '6 3');
+
+          g.append('rect')
+            .attr('x', cx + 18)
+            .attr('y', (s1.y + s2.y) / 2 - 10)
+            .attr('width', 95)
+            .attr('height', 20)
+            .attr('rx', 5)
+            .attr('fill', '#0f172a')
+            .attr('stroke', '#475569');
+
+          g.append('text')
+            .attr('x', cx + 65)
+            .attr('y', (s1.y + s2.y) / 2 + 4)
+            .attr('font-size', '9px')
+            .attr('font-family', 'monospace')
+            .attr('fill', '#38bdf8')
+            .attr('text-anchor', 'middle')
+            .text(`Homomorphism`);
+        }
+
+        const stageGroup = g.append('g')
+          .selectAll('g')
+          .data(macroStages)
+          .join('g')
+          .attr('transform', d => `translate(${cx},${d.y})`)
+          .style('cursor', 'pointer')
+          .on('click', (event, d) => {
+            inspectNode({
+              id: d.id,
+              label: d.name,
+              depth: `Coset Size: ${d.size}`,
+              desc: `${d.desc} (Generators: ${d.generators})`
+            });
+          });
+
+        stageGroup.append('circle')
+          .attr('r', d => d.radius)
+          .attr('fill', d => d.color)
+          .attr('fill-opacity', 0.8)
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', 2)
+          .attr('filter', 'url(#glow)');
+
+        stageGroup.append('text')
+          .attr('dy', -2)
+          .attr('font-size', '11px')
+          .attr('font-weight', 'bold')
+          .attr('fill', '#ffffff')
+          .attr('text-anchor', 'middle')
+          .text(d => d.name.split(':')[0]);
+
+        stageGroup.append('text')
+          .attr('dy', 14)
+          .attr('font-size', '9px')
+          .attr('font-family', 'monospace')
+          .attr('fill', '#f1f5f9')
+          .attr('text-anchor', 'middle')
+          .text(d => d.size.split(' ')[0]);
+      }
+
+      function inspectNode(d) {
+        SoundEngine.playStepChime(3);
+        const inspector = document.getElementById('node-inspector');
+        document.getElementById('inspector-id').textContent = d.label || d.id;
+        document.getElementById('inspector-depth').textContent = typeof d.depth === 'number' ? `dist: ${d.depth}` : d.depth;
+        document.getElementById('inspector-desc').textContent = d.desc || (d.isRoot ? "Identity Root State (Solved)" : `Visited configuration in current session.`);
+        
+        inspector.classList.remove('hidden');
+      }
+
+      function updateLegend() {
+        const legend = document.getElementById('legend-content');
+        if (currentMode === 'local') {
+          legend.innerHTML = `
+            <div class="font-bold text-slate-200 mb-1.5 flex items-center justify-between">
+              <span>Local Cayley Legend</span>
+              <span class="text-[10px] text-cyan-400">QTM</span>
+            </div>
+            <div class="space-y-1 text-[11px] text-slate-300">
+              <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-cyan-400"></span><span>Current Active State</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500"></span><span>Solved Identity [e]</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-indigo-500"></span><span>Visited Past States</span></div>
+              <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-700 border border-slate-500"></span><span>Frontier Generator (Next Move)</span></div>
+            </div>
+          `;
+        } else if (currentMode === 'subgroup') {
+          legend.innerHTML = `
+            <div class="font-bold text-purple-300 mb-1">Finite Subgroup Loops</div>
+            <p class="text-[10px] text-slate-400 leading-tight">
+              Commutators $[R,U]^6 = e$ and Klein 4-group adjacent geometries showing finite cyclicity.
+            </p>
+          `;
+        } else if (currentMode === 'macro') {
+          legend.innerHTML = `
+            <div class="font-bold text-amber-300 mb-1">Subgroup Cascade</div>
+            <p class="text-[10px] text-slate-400 leading-tight">
+              Thistlethwaite reduction: filtering 43 quintillion states down into solvable sub-quotients.
+            </p>
+          `;
+        } else {
+          legend.innerHTML = `
+            <div class="font-bold text-cyan-300 mb-1">Solver Comparisons</div>
+            <p class="text-[10px] text-slate-400 leading-tight">
+              Evaluating Graph-search BFS vs CFOP Human Decomposition vs Kociemba 2-Phase.
+            </p>
+          `;
+        }
+      }
+
+      function updateExplainer() {
+        const text = document.getElementById('explainer-text');
+        if (currentMode === 'local') {
+          text.textContent = "Each circle is a cube state. Radiating branches are 12 face turns. Click any adjacent node or use turn buttons to explore!";
+        } else if (currentMode === 'subgroup') {
+          text.textContent = "Notice how repeating algorithms form cycles! This network loop structure explains why algorithms don't destroy already solved parts.";
+        } else if (currentMode === 'macro') {
+          text.textContent = "The complete graph has 43 quintillion nodes. Computer solvers conquer this using nested subgroup highways to reach the solved root!";
+        } else {
+          text.textContent = "Detailed comparison of all 3 algorithms in move counts, execution speed, graph theoretical strategy, and memory tradeoffs.";
+        }
+      }
+
+      function recenter() {
+        if (!simulation) return;
+        svg.transition().duration(500).call(
+          zoomHandler.transform,
+          d3.zoomIdentity.translate(0, 0).scale(1)
+        );
+      }
+
+      return {
+        init,
+        switchMode,
+        refresh: () => {
+          if (currentMode === 'local') renderLocalNetwork();
+        },
+        recenter,
+        inspectNode
+      };
+    })();
+  </script>
+
+  <script>
+    /* Application Master Controller */
+    window.onload = function() {
+      // 1. Initialize 3D Engine
+      Rubiks3D.init('cube-container');
+
+      // 2. Initialize Graph Model
+      StateNetwork.init();
+
+      // 3. Initialize D3 Canvas
+      NetworkRenderer.init('network-svg');
+
+      // Playback State variables for Solver Runner
+      let activeSolvePlan = [];
+      let currentSolveIndex = 0;
+      let solvePlaybackTimer = null;
+      let isPlayingSolve = false;
+
+      // Expose move execution helper
+      window.applyMoveFromUI = function(move, callback) {
+        if (Rubiks3D.isBusy()) return;
+
+        const speed = parseInt(document.getElementById('solver-speed').value, 10) || 160;
+
+        Rubiks3D.turn(move, () => {
+          const res = StateNetwork.applyMove(move);
+          updateUIState(res);
+          NetworkRenderer.refresh();
+          if (callback) callback();
+        }, speed);
+      };
+
+      // Turn buttons
+      document.querySelectorAll('.move-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (isPlayingSolve) stopSolvePlayback();
+          const move = btn.getAttribute('data-move');
+          window.applyMoveFromUI(move);
+        });
+      });
+
+      // Reset Button
+      document.getElementById('btn-reset').addEventListener('click', () => {
+        stopSolvePlayback();
+        Rubiks3D.reset();
+        StateNetwork.reset();
+        updateUIState({ currentId: 'e', depth: 0, path: [] });
+        NetworkRenderer.refresh();
+        SoundEngine.playStepChime(1);
+      });
+
+      document.getElementById('btn-clear-path').addEventListener('click', () => {
+        stopSolvePlayback();
+        Rubiks3D.reset();
+        StateNetwork.reset();
+        updateUIState({ currentId: 'e', depth: 0, path: [] });
+        NetworkRenderer.refresh();
+      });
+
+      // Random Walk (6 moves)
+      document.getElementById('btn-scramble').addEventListener('click', () => {
+        stopSolvePlayback();
+        const moves = ["U", "U'", "R", "R'", "F", "F'", "D", "D'", "L", "L'", "B", "B'"];
+        let count = 0;
+        function step() {
+          if (count < 6) {
+            const randMove = moves[Math.floor(Math.random() * moves.length)];
+            window.applyMoveFromUI(randMove, () => {
+              count++;
+              setTimeout(step, 90);
+            });
+          }
+        }
+        step();
+      });
+
+      // Deep Scramble (14 moves)
+      document.getElementById('btn-scramble-deep').addEventListener('click', () => {
+        stopSolvePlayback();
+        const moves = ["U", "U'", "R", "R'", "F", "F'", "D", "D'", "L", "L'", "B", "B'"];
+        let count = 0;
+        function step() {
+          if (count < 14) {
+            const randMove = moves[Math.floor(Math.random() * moves.length)];
+            window.applyMoveFromUI(randMove, () => {
+              count++;
+              setTimeout(step, 80);
+            });
+          }
+        }
+        step();
+      });
+
+      // Sexy Move [R, U]
+      document.getElementById('btn-sexy').addEventListener('click', () => {
+        stopSolvePlayback();
+        const alg = ["R", "U", "R'", "U'"];
+        let i = 0;
+        function step() {
+          if (i < alg.length) {
+            window.applyMoveFromUI(alg[i], () => {
+              i++;
+              setTimeout(step, 100);
+            });
+          }
+        }
+        step();
+      });
+
+      // Solver Initiation Handler
+      function startSolver(plan, methodName) {
+        if (!plan || plan.length === 0) {
+          const toast = document.getElementById('cube-status-banner');
+          toast.classList.add('bg-emerald-900');
+          document.getElementById('cube-status-text').textContent = "Already Solved! Try scrambling first.";
+          setTimeout(() => {
+            toast.classList.remove('bg-emerald-900');
+            document.getElementById('cube-status-text').textContent = "State: Solved [Identity e]";
+          }, 2000);
+          return;
+        }
+
+        activeSolvePlan = plan;
+        currentSolveIndex = 0;
+        isPlayingSolve = true;
+
+        const playbackBar = document.getElementById('solver-playback-bar');
+        playbackBar.classList.remove('hidden');
+        document.getElementById('solver-name-label').textContent = `Solving with ${methodName}`;
+        document.getElementById('solver-btn-play').textContent = "Pause";
+
+        updateSolverStepView();
+        runNextSolveStep();
+      }
+
+      function runNextSolveStep() {
+        if (!isPlayingSolve) return;
+        if (currentSolveIndex >= activeSolvePlan.length) {
+          finishSolvePlayback();
+          return;
+        }
+
+        const step = activeSolvePlan[currentSolveIndex];
+        updateSolverStepView();
+        SoundEngine.playStepChime(currentSolveIndex);
+
+        window.applyMoveFromUI(step.move, () => {
+          currentSolveIndex++;
+          if (currentSolveIndex < activeSolvePlan.length && isPlayingSolve) {
+            const speed = parseInt(document.getElementById('solver-speed').value, 10) || 220;
+            solvePlaybackTimer = setTimeout(runNextSolveStep, speed);
+          } else if (currentSolveIndex >= activeSolvePlan.length) {
+            finishSolvePlayback();
+          }
+        });
+      }
+
+      function updateSolverStepView() {
+        const stepCounter = document.getElementById('solver-step-counter');
+        const explainer = document.getElementById('solver-step-explainer');
+        const step = activeSolvePlan[currentSolveIndex] || activeSolvePlan[activeSolvePlan.length - 1];
+
+        stepCounter.textContent = `Step ${Math.min(currentSolveIndex + 1, activeSolvePlan.length)} / ${activeSolvePlan.length}`;
+        if (step) {
+          explainer.innerHTML = `<span class="text-cyan-400 font-bold font-mono">[${step.phase}]</span> ${step.desc}`;
+        }
+      }
+
+      function stopSolvePlayback() {
+        isPlayingSolve = false;
+        if (solvePlaybackTimer) clearTimeout(solvePlaybackTimer);
+        document.getElementById('solver-playback-bar').classList.add('hidden');
+      }
+
+      function finishSolvePlayback() {
+        isPlayingSolve = false;
+        if (solvePlaybackTimer) clearTimeout(solvePlaybackTimer);
+        document.getElementById('solver-btn-play').textContent = "Restart";
+        SoundEngine.playSolvedFanfare();
+        document.getElementById('solver-step-explainer').innerHTML = `<span class="text-emerald-400 font-bold">Solved!</span> The cube has successfully returned to identity state {e}.`;
+      }
+
+      // Solver Button 1: God's Geodesic
+      document.getElementById('btn-solve-geodesic').addEventListener('click', () => {
+        stopSolvePlayback();
+        const path = StateNetwork.getPath();
+        const plan = CubeSolvers.solveGeodesic(path);
+        startSolver(plan, "God's Geodesic (BFS)");
+      });
+
+      // Solver Button 2: CFOP Layer-by-Layer
+      document.getElementById('btn-solve-cfop').addEventListener('click', () => {
+        stopSolvePlayback();
+        const path = StateNetwork.getPath();
+        const plan = CubeSolvers.solveCFOP(path);
+        startSolver(plan, "Layer-by-Layer (CFOP)");
+      });
+
+      // Solver Button 3: Kociemba 2-Phase
+      document.getElementById('btn-solve-kociemba').addEventListener('click', () => {
+        stopSolvePlayback();
+        const path = StateNetwork.getPath();
+        const plan = CubeSolvers.solveKociemba(path);
+        startSolver(plan, "Kociemba's 2-Phase");
+      });
+
+      // Playback Controls
+      document.getElementById('solver-btn-play').addEventListener('click', () => {
+        if (isPlayingSolve) {
+          isPlayingSolve = false;
+          if (solvePlaybackTimer) clearTimeout(solvePlaybackTimer);
+          document.getElementById('solver-btn-play').textContent = "Resume";
+        } else {
+          if (currentSolveIndex >= activeSolvePlan.length) {
+            currentSolveIndex = 0;
+          }
+          isPlayingSolve = true;
+          document.getElementById('solver-btn-play').textContent = "Pause";
+          runNextSolveStep();
+        }
+      });
+
+      document.getElementById('solver-btn-next').addEventListener('click', () => {
+        isPlayingSolve = false;
+        if (solvePlaybackTimer) clearTimeout(solvePlaybackTimer);
+        document.getElementById('solver-btn-play').textContent = "Resume";
+        if (currentSolveIndex < activeSolvePlan.length) {
+          const step = activeSolvePlan[currentSolveIndex];
+          window.applyMoveFromUI(step.move, () => {
+            currentSolveIndex++;
+            updateSolverStepView();
+            if (currentSolveIndex >= activeSolvePlan.length) finishSolvePlayback();
+          });
+        }
+      });
+
+      document.getElementById('solver-btn-prev').addEventListener('click', () => {
+        isPlayingSolve = false;
+        if (solvePlaybackTimer) clearTimeout(solvePlaybackTimer);
+        document.getElementById('solver-btn-play').textContent = "Resume";
+        if (currentSolveIndex > 0) {
+          currentSolveIndex--;
+          const step = activeSolvePlan[currentSolveIndex];
+          const inv = step.move.endsWith("'") ? step.move.charAt(0) : step.move + "'";
+          window.applyMoveFromUI(inv, () => {
+            updateSolverStepView();
+          });
+        }
+      });
+
+      document.getElementById('solver-btn-stop').addEventListener('click', stopSolvePlayback);
+
+      // Tab Navigation
+      const tabs = [
+        { id: 'tab-local', mode: 'local' },
+        { id: 'tab-subgroup', mode: 'subgroup' },
+        { id: 'tab-macro', mode: 'macro' },
+        { id: 'tab-solvers', mode: 'solvers' }
+      ];
+
+      tabs.forEach(t => {
+        const btn = document.getElementById(t.id);
+        btn.addEventListener('click', () => {
+          tabs.forEach(o => {
+            const ob = document.getElementById(o.id);
+            ob.className = 'tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition';
+          });
+          btn.className = 'tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition shadow-sm';
+          NetworkRenderer.switchMode(t.mode);
+        });
+      });
+
+      document.getElementById('btn-recenter').addEventListener('click', () => {
+        NetworkRenderer.recenter();
+      });
+
+      // Audio Toggle
+      const audioBtn = document.getElementById('btn-audio');
+      const audioOn = document.getElementById('audio-icon-on');
+      const audioOff = document.getElementById('audio-icon-off');
+      audioBtn.addEventListener('click', () => {
+        const on = SoundEngine.toggle();
+        if (on) {
+          audioOn.classList.remove('hidden');
+          audioOff.classList.add('hidden');
+        } else {
+          audioOn.classList.add('hidden');
+          audioOff.classList.remove('hidden');
+        }
+      });
+
+      // Modal Theory Handlers
+      const theoryBtn = document.getElementById('btn-theory-drawer');
+      const modalTheory = document.getElementById('modal-theory');
+      const modalClose = document.getElementById('modal-close');
+      const modalAck = document.getElementById('modal-ack');
+
+      theoryBtn.addEventListener('click', () => modalTheory.classList.remove('hidden'));
+      modalClose.addEventListener('click', () => modalTheory.classList.add('hidden'));
+      modalAck.addEventListener('click', () => modalTheory.classList.add('hidden'));
+      modalTheory.addEventListener('click', (e) => {
+        if (e.target === modalTheory) modalTheory.classList.add('hidden');
+      });
+
+      function updateUIState(state) {
+        document.getElementById('badge-depth').textContent = state.depth;
+
+        const statusText = document.getElementById('cube-status-text');
+        if (state.depth === 0) {
+          statusText.textContent = "State: Solved [Identity e]";
+          statusText.className = "text-emerald-400 font-bold";
+        } else {
+          statusText.textContent = `State: Graph Depth ${state.depth}`;
+          statusText.className = "text-cyan-300 font-mono";
+        }
+
+        const pathDiv = document.getElementById('path-history');
+        if (state.path.length === 0) {
+          pathDiv.innerHTML = '<span class="text-slate-500 italic">No turns executed yet (Identity state)</span>';
+        } else {
+          pathDiv.innerHTML = state.path.map((m) => `
+            <span class="inline-block px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-xs border border-slate-700 mr-1">${m}</span>
+          `).join('');
+          pathDiv.scrollLeft = pathDiv.scrollWidth;
+        }
+      }
+    };
+  </script>
+</body>
+</html>
