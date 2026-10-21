@@ -618,7 +618,6 @@ function updateFlight(dt){
       targetSpeed = 1.2; ship.rotateY(.035*dt); bank = lerp(bank, 0, damp(1, dt));
       if (now > apTimer){ apState = 'cruising'; apTarget = null; apTimer = now + 10000 + Math.random()*8000; }
     }
-    $('hold').style.opacity = 0;
   } else {
     if (inXR){ inYaw = yawPitch.x; inPitch = yawPitch.y; }
     else if (ptr.touchThrust){
