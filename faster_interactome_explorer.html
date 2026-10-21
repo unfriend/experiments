@@ -338,6 +338,7 @@ const M = {};
 const blinkers = [];
 let throttleLever, stickPivot, holoRoot;
 const screens = {};
+const COCKPIT_DROP = -.18;
 
 function cockpitMaterials(){
   M.hull  = new THREE.MeshStandardMaterial({ color:0x1b1230, metalness:.85, roughness:.32, envMapIntensity:1.1 });
@@ -371,7 +372,7 @@ const TILT = Math.atan2(DASH.r1-DASH.r0, DASH.y1-DASH.y0);
 
 function buildCockpit(){
   cockpitMaterials();
-  const ck = new THREE.Group(); ck.position.z = .14; rig.add(ck);
+  const ck = new THREE.Group(); ck.position.set(0, COCKPIT_DROP, .14); rig.add(ck);
   ck.add(new THREE.Mesh(band(-DASH.a, DASH.a, DASH.r0, DASH.y0, DASH.r1, DASH.y1), dbl(M.hull)));
   ck.add(new THREE.Mesh(band(-DASH.a, DASH.a, DASH.r1, DASH.y1, .96, -.2), dbl(M.trim)));
   ck.add(new THREE.Mesh(band(-DASH.a, DASH.a, .96, -.2, 1.0, -.27), dbl(M.hull)));
@@ -417,7 +418,7 @@ function buildCockpit(){
   const trig = new THREE.Mesh(new THREE.SphereGeometry(.009, 10, 10), M.cyan); trig.position.set(0, .2, -.022); stickPivot.add(trig);
 
   // holo projector pedestal at the centre
-  holoRoot = new THREE.Group(); holoRoot.position.set(0, .05, -.5); rig.add(holoRoot);
+  holoRoot = new THREE.Group(); holoRoot.position.set(0, -.24, -.5); rig.add(holoRoot);
   const ped = new THREE.Group(); ped.position.set(0, -.272, -.64); ck.add(ped);
   const col = new THREE.Mesh(new THREE.CylinderGeometry(.045, .07, .2, 24), M.hull); col.position.y = -.12; ped.add(col);
   const colLed = new THREE.Mesh(new THREE.TorusGeometry(.058, .003, 6, 48), M.violet); colLed.rotation.x = Math.PI/2; colLed.position.y = -.08; ped.add(colLed);
@@ -438,7 +439,7 @@ function buildCockpit(){
   mountHigh('mission', .72, .29, .145);
 
   const compassMesh = new THREE.Mesh(new THREE.PlaneGeometry(.62, .062), new THREE.MeshBasicMaterial({ map:screens.compass.tex, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false }));
-  compassMesh.position.set(0, .4, -1.05); compassMesh.rotation.x = .3; rig.add(compassMesh);
+  compassMesh.position.set(0, .4 + COCKPIT_DROP, -1.05); compassMesh.rotation.x = .3; rig.add(compassMesh);
 
   const reticle = new THREE.Group(); reticle.position.set(0, 0, -7); rig.add(reticle);
   const rm = new THREE.MeshBasicMaterial({ color:0x00e5ff, transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthTest:false, toneMapped:false });
@@ -486,14 +487,14 @@ function screenBody(group, w, h, round, p){
   }
 }
 function mountScreen(key, az, t, w, h, round){
-  const r = lerp(DASH.r0, DASH.r1, t) + .004, y = lerp(DASH.y0, DASH.y1, t);
+  const r = lerp(DASH.r0, DASH.r1, t) + .004, y = lerp(DASH.y0, DASH.y1, t) + COCKPIT_DROP;
   const g = new THREE.Group(); g.position.set(r*Math.sin(az), y, -r*Math.cos(az));
   g.rotation.order = 'YXZ'; g.rotation.y = -az; g.rotation.x = -TILT; rig.add(g);
   screenBody(g, w, h, round, screens[key]);
 }
 function mountHigh(key, az, y, h){
   const w = h*2, d = .84;
-  const g = new THREE.Group(); g.position.set(d*Math.sin(az), y, -d*Math.cos(az));
+  const g = new THREE.Group(); g.position.set(d*Math.sin(az), y + COCKPIT_DROP, -d*Math.cos(az));
   g.rotation.order = 'YXZ'; g.rotation.y = -az; g.rotation.x = -.16; rig.add(g);
   screenBody(g, w, h, false, screens[key]);
   const arm = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, .16, 10), M.chrome); arm.position.set(0, h/2 + .09, -.03); g.add(arm);
