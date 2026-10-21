@@ -50,8 +50,6 @@ button.go:focus-visible{outline:2px solid #fff;outline-offset:3px}
   background:rgba(7,1,15,.6);border:1px solid rgba(166,107,255,.3);padding:8px 12px;line-height:1.7;pointer-events:none;transition:opacity .5s;max-width:calc(100vw - 32px)}
 #help b{color:var(--cyan);font-weight:400}
 #help.off{opacity:0}
-#steer{position:fixed;left:0;top:0;z-index:12;width:12px;height:12px;margin:-6px 0 0 -6px;border:1px solid var(--pink);border-radius:50%;pointer-events:none;box-shadow:0 0 10px var(--pink)}
-#hold{position:fixed;z-index:12;left:50%;top:14px;transform:translateX(-50%);font-size:10px;letter-spacing:.3em;color:var(--sun);pointer-events:none;opacity:0;transition:opacity .2s;white-space:nowrap}
 .touch{display:none}
 @media (pointer:coarse){
   .touch{display:flex;position:fixed;z-index:16;gap:10px;right:max(16px,env(safe-area-inset-right,0px));bottom:max(80px,calc(env(safe-area-inset-bottom,0px) + 80px))}
@@ -63,9 +61,6 @@ button.go:focus-visible{outline:2px solid #fff;outline-offset:3px}
 
 <div id="stage"></div>
 <div id="grain"></div>
-<div id="steer" hidden></div>
-<div id="hold">STEERING HELD · POINTER OVER DASHBOARD</div>
-
 <div id="splash">
   <div class="card">
     <div class="kicker">LBI NETMED · DATASPACE RECON</div>
@@ -78,8 +73,8 @@ button.go:focus-visible{outline:2px solid #fff;outline-offset:3px}
     </div>
     <p class="vrnote" id="vr-note">Checking for a VR headset…</p>
     <div class="keys">
-      <div><b>POINTER</b>steer</div><div><b>W / S</b>thrust · brake</div><div><b>A / D</b>yaw</div><div><b>Q / E</b>pitch</div><div><b>SHIFT</b>overdrive</div>
-      <div><b>SPACE / CLICK</b>fire tracer</div><div><b>H</b>help</div><div><b>B</b>bloom on / off</div>
+      <div><b>W / S</b>thrust · brake</div><div><b>A / D</b>yaw</div><div><b>Q / E</b>pitch</div><div><b>SHIFT</b>overdrive</div>
+      <div><b>SPACE</b>fire tracer</div><div><b>H</b>help</div><div><b>B</b>bloom on / off</div>
     </div>
   </div>
 </div>
@@ -503,7 +498,7 @@ function mountHigh(key, az, y, h){
 let speed = 0, targetSpeed = 0, energy = 100, gunSide = 1;
 const CRUISE = 26, BOOST = 70, REVERSE = -8, AP_CRUISE = 9;
 const keys = { w:false, s:false, a:false, d:false, q:false, e:false, shift:false };
-const ptr = { x:VW/2, y:VH*.4, mouse:false, touchThrust:false };
+const ptr = { x:VW/2, y:VH*.4, touchThrust:false };
 const yawPitch = new THREE.Vector2(), turnVel = new THREE.Vector2();
 let lastInput = performance.now(), launched = false, inXR = false;
 let autopilot = true, apTarget = null, apState = 'cruising', apTimer = performance.now() + 8000, bank = 0;
@@ -555,9 +550,8 @@ function updateFlight(dt){
     $('hold').style.opacity = 0;
   } else {
     if (inXR){ inYaw = yawPitch.x; inPitch = yawPitch.y; }
-    else if (ptr.mouse || ptr.touchThrust){
+    else if (ptr.touchThrust){
       const over = ptr.y > steerZoneBottom();
-      $('hold').style.opacity = over && ptr.mouse ? 1 : 0;
       if (!over){ inYaw = dzone(clamp((ptr.x - VW/2)/(VW*.42), -1, 1)); inPitch = dzone(clamp((VH*.36 - ptr.y)/(VH*.34), -1, 1)); }
     }
     inYaw = clamp(inYaw + Number(keys.d) - Number(keys.a), -1, 1);
@@ -581,17 +575,12 @@ function updateFlight(dt){
   if (inXR){ rig.rotation.z = 0; }
   else {
     rig.rotation.z = reduceMotion ? 0 : bank;
-    const lx = ptr.mouse ? clamp((ptr.x - VW/2)/(VW/2), -1, 1) : 0, ly = ptr.mouse ? clamp((ptr.y - VH/2)/(VH/2), -1, 1) : 0;
-    camera.rotation.y = lerp(camera.rotation.y, -lx*.16, damp(3, dt));
-    camera.rotation.x = lerp(camera.rotation.x, -.15 - ly*.06, damp(3, dt));
-    camera.position.x = lerp(camera.position.x, lx*.04, damp(3, dt));
+    camera.rotation.x = lerp(camera.rotation.x, -.15, damp(3, dt));
   }
   throttleLever.rotation.x = lerp(throttleLever.rotation.x, -clamp(speed/BOOST, -.2, 1)*.9 + .3, damp(4, dt));
   stickPivot.rotation.z = lerp(stickPivot.rotation.z, turnVel.x*.6, damp(5, dt));
   stickPivot.rotation.x = lerp(stickPivot.rotation.x, -turnVel.y*.6, damp(5, dt));
 
-  const st = $('steer'), show = !inXR && launched && !autopilot && ptr.mouse && ptr.y < steerZoneBottom();
-  st.hidden = !show; if (show) st.style.transform = `translate(${ptr.x}px,${ptr.y}px)`;
 }
 
 // ---------------------------------------------------------------- XR input
@@ -1142,14 +1131,14 @@ function setupVR(){
 }
 
 function bindInput(){
-  addEventListener('pointermove', e => { ptr.x = e.clientX; ptr.y = e.clientY; if (e.pointerType === 'mouse'){ ptr.mouse = true; if (launched) poke(); } });
+  addEventListener('pointermove', e => { if (e.pointerType !== 'mouse'){ ptr.x = e.clientX; ptr.y = e.clientY; } });
   addEventListener('pointerdown', e => {
-    if (!launched || e.target.closest('button')) return;
+    if (e.pointerType === 'mouse' || !launched || e.target.closest('button')) return;
     ptr.x = e.clientX; ptr.y = e.clientY; poke();
-    if (e.pointerType === 'mouse'){ if (e.clientY < steerZoneBottom()) fire(); } else ptr.touchThrust = true;
+    ptr.touchThrust = true;
   });
   addEventListener('pointerup', e => { if (e.pointerType !== 'mouse'){ ptr.touchThrust = false; ptr.x = VW/2; ptr.y = VH*.36; } });
-  addEventListener('pointercancel', () => { ptr.touchThrust = false; });
+  addEventListener('pointercancel', () => { ptr.touchThrust = false; ptr.x = VW/2; ptr.y = VH*.36; });
   addEventListener('keydown', e => {
     if (!launched){ if ((e.code === 'Enter' || e.code === 'Space') && !$('btn-launch').disabled){ launch(); e.preventDefault(); } return; }
     poke();

@@ -97,7 +97,6 @@
 
             <div id="controls-hint" class="hud-panel text-sm text-cyan-100 text-right">
                 <p class="font-bold text-cyan-400 mb-2">FLIGHT CONTROLS</p>
-                <p>Mouse: <span class="text-gray-400">Steer</span></p>
                 <p>W / S: <span class="text-gray-400">Thrust / Reverse</span></p>
                 <p>A / D: <span class="text-gray-400">Yaw</span></p>
                 <p>Q / E: <span class="text-gray-400">Pitch</span></p>
@@ -140,13 +139,6 @@
         const boostSpeed = 5.0;
         const acceleration = 0.05;
         
-        // Mouse steering
-        let mouseX = 0;
-        let mouseY = 0;
-        let targetRotationX = 0;
-        let targetRotationY = 0;
-        const lookSpeed = 0.05;
-
         // Input state
         const keys = { w: false, s: false, a: false, d: false, q: false, e: false, shift: false };
 
@@ -195,7 +187,6 @@
 
             // Event Listeners
             window.addEventListener('resize', onWindowResize, false);
-            document.addEventListener('mousemove', onDocumentMouseMove, false);
             document.addEventListener('keydown', onKeyDown, false);
             document.addEventListener('keyup', onKeyUp, false);
 
@@ -440,12 +431,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function onDocumentMouseMove(event) {
-            // Normalize mouse coordinates (-1 to +1)
-            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-        }
-
         function onKeyDown(event) {
             switch (event.code) {
                 case 'KeyW': keys.w = true; break;
@@ -477,11 +462,9 @@
         }
 
         function updateShip() {
-            // Smoothly interpolate rotation based on mouse position
-            // Center of screen (0,0) means no rotation. Edges mean max rotation.
             const rotationSensitivity = 0.03;
-            ship.rotateY((-mouseX + Number(keys.a) - Number(keys.d)) * rotationSensitivity);
-            ship.rotateX((mouseY + Number(keys.e) - Number(keys.q)) * rotationSensitivity);
+            ship.rotateY((Number(keys.a) - Number(keys.d)) * rotationSensitivity);
+            ship.rotateX((Number(keys.e) - Number(keys.q)) * rotationSensitivity);
             
             // Constrain roll (Z rotation) to keep it somewhat stable, or let it bank
             ship.rotation.z *= 0.9; // dampen roll
