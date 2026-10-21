@@ -695,7 +695,7 @@ function poke(){
 
 // ---------------------------------------------------------------- proximity, scanning, protein holograms
 const sphereGeo = new THREE.SphereGeometry(1, 10, 10), bondGeo = new THREE.CylinderGeometry(1, 1, 1, 6);
-const HOLO_R = 160, MOL_R = 18, SHELL_R = 1.6;
+const HOLO_R = 160, MOL_R = 18, SHELL_R = .7;
 function checkProximity(dt){
   const sp = ship.position, inRange = [];
   let closest = null, cd = 1e9;
