@@ -695,13 +695,13 @@ function poke(){
 
 // ---------------------------------------------------------------- proximity, scanning, protein holograms
 const sphereGeo = new THREE.SphereGeometry(1, 10, 10), bondGeo = new THREE.CylinderGeometry(1, 1, 1, 6);
-const HOLO_R = 60, MOL_R = 24, SHELL_R = 3.2;
+const HOLO_R = 160, MOL_R = 18, SHELL_R = 1.6;
 function checkProximity(dt){
   const sp = ship.position, inRange = [];
   let closest = null, cd = 1e9;
-  forNear(sp, 70, (i, d2) => { const d = Math.sqrt(d2); inRange.push([nodes[i], d]); if (d < cd){ cd = d; closest = nodes[i]; } });
+  forNear(sp, 170, (i, d2) => { const d = Math.sqrt(d2); inRange.push([nodes[i], d]); if (d < cd){ cd = d; closest = nodes[i]; } });
   inRange.sort((a,b) => a[1]-b[1]);
-  const nearList = inRange.filter(x => x[1] < HOLO_R).slice(0, 8);
+  const nearList = inRange.filter(x => x[1] < HOLO_R).slice(0, 30);
   const ids = new Set(nearList.map(x => x[0].id));
   nearList.forEach(([n,d]) => {
     let h = activeHolos.get(n.id);
@@ -731,8 +731,8 @@ function makeHologram(colorHex){
   group.children.forEach(c => c.position.sub(cen));
   maxR = 0; pts.forEach(p => { maxR = Math.max(maxR, p.distanceTo(cen) + .65); });
   const inner = new THREE.Group(); while (group.children.length) inner.add(group.children[0]);
-  inner.scale.setScalar(SHELL_R*.8/maxR); group.add(inner);
-  const sm = new THREE.MeshBasicMaterial({ color:colorHex, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending });
+  inner.scale.setScalar(SHELL_R*.7/maxR); group.add(inner);
+  const sm = new THREE.MeshBasicMaterial({ color:colorHex, transparent:true, opacity:0 });
   const shell = new THREE.Mesh(new THREE.SphereGeometry(SHELL_R, 24, 16), sm); group.add(shell);
   inner.userData.spin = true;
   return { group, inner, shell, sm, mats, target:0, op:0, presence:1, sh:0 };
@@ -745,7 +745,7 @@ function updateHolograms(dt){
     const shT = h.presence * (1 - h.op);
     h.sh = h.sh < shT ? Math.min(shT, h.sh + rate*1.5) : Math.max(shT, h.sh - rate*1.5);
     h.mats.forEach(m => m.opacity = m.baseOpacity*h.op);
-    h.sm.opacity = .35*h.sh; h.shell.visible = h.sh > .001; h.inner.visible = h.op > .001;
+    h.sm.opacity = h.sh; h.shell.visible = h.sh > .001; h.inner.visible = h.op > .001;
     h.inner.rotation.y += .25*dt; h.inner.rotation.x += .12*dt;
     const n = nodes[id], v = 1 - Math.max(h.op, h.sh)*.85; ca.setXYZ(id, n.disp.r*v, n.disp.g*v, n.disp.b*v); dirty = true;
     if (h.presence === 0 && h.op === 0 && h.sh === 0){ scene.remove(h.group); h.mats.forEach(m => m.dispose()); h.sm.dispose(); h.shell.geometry.dispose(); activeHolos.delete(id); ca.setXYZ(id, n.disp.r, n.disp.g, n.disp.b); }
