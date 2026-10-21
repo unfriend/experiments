@@ -719,8 +719,8 @@ function checkProximity(dt){
 function makeHologram(colorHex){
   const group = new THREE.Group(), mats = [], base = new THREE.Color(colorHex), hsl = {}; base.getHSL(hsl);
   for (let k=0;k<5;k++){ const c = new THREE.Color().setHSL((hsl.h + Math.random()*.16 - .08 + 1)%1, clamp(hsl.s + Math.random()*.3 - .15, .3, 1), clamp(hsl.l + Math.random()*.4 - .2, .25, .75));
-    const m = new THREE.MeshStandardMaterial({ color:c, emissive:c, emissiveIntensity:1.1 + Math.random()*.6, transparent:true, opacity:0, roughness:.15, metalness:.7 }); m.baseOpacity = .85; mats.push(m); }
-  const bm = new THREE.MeshBasicMaterial({ color:colorHex, transparent:true, opacity:0, blending:THREE.AdditiveBlending }); bm.baseOpacity = .7; mats.push(bm);
+    const m = new THREE.MeshStandardMaterial({ color:c, emissive:c, emissiveIntensity:1.1 + Math.random()*.6, transparent:true, opacity:0, roughness:.15, metalness:.7 }); m.baseOpacity = .72; mats.push(m); }
+  const bm = new THREE.MeshBasicMaterial({ color:colorHex, transparent:true, opacity:0, blending:THREE.AdditiveBlending }); bm.baseOpacity = .65; mats.push(bm);
   const n = 14 + Math.floor(Math.random()*60); const cur = new THREE.Vector3(), pts = [];
   for (let i=0;i<n;i++){ pts.push(cur.clone()); const a = new THREE.Mesh(sphereGeo, mats[Math.floor(Math.random()*5)]); a.scale.setScalar(.15 + Math.random()*.5); a.position.copy(cur); group.add(a);
     const d = new THREE.Vector3(Math.random()-.5, Math.random()-.5, Math.random()-.5).normalize().multiplyScalar(.5 + Math.random()*1.6); d.sub(cur.clone().multiplyScalar(.15)); cur.add(d); }
@@ -740,12 +740,13 @@ function makeHologram(colorHex){
 function updateHolograms(dt){
   const ca = nodesGeo.attributes.aColor; let dirty = false;
   activeHolos.forEach((h,id) => {
-    const rate = dt*.5;
-    h.op = h.op < h.target ? Math.min(h.target, h.op + rate) : Math.max(h.target, h.op - rate);
+    h.op = lerp(h.op, h.target, damp(3.2, dt));
+    if (Math.abs(h.op - h.target) < .001) h.op = h.target;
     const shT = h.presence * (1 - h.op);
-    h.sh = h.sh < shT ? Math.min(shT, h.sh + rate*1.5) : Math.max(shT, h.sh - rate*1.5);
+    h.sh = lerp(h.sh, shT, damp(4, dt));
+    if (Math.abs(h.sh - shT) < .001) h.sh = shT;
     h.mats.forEach(m => m.opacity = m.baseOpacity*h.op);
-    h.sm.opacity = h.sh; h.shell.visible = h.sh > .001; h.inner.visible = h.op > .001;
+    h.sm.opacity = .4*h.sh; h.shell.visible = h.sh > .001; h.inner.visible = h.op > .001;
     h.inner.rotation.y += .25*dt; h.inner.rotation.x += .12*dt;
     const n = nodes[id], v = 1 - Math.max(h.op, h.sh)*.85; ca.setXYZ(id, n.disp.r*v, n.disp.g*v, n.disp.b*v); dirty = true;
     if (h.presence === 0 && h.op === 0 && h.sh === 0){ scene.remove(h.group); h.mats.forEach(m => m.dispose()); h.sm.dispose(); h.shell.geometry.dispose(); activeHolos.delete(id); ca.setXYZ(id, n.disp.r, n.disp.g, n.disp.b); }
