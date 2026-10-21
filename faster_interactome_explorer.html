@@ -532,28 +532,30 @@ function startAudio(){
     const context = new AudioContext(), master = context.createGain();
     master.gain.value = .55; master.connect(context.destination);
     const drone = context.createGain(), filter = context.createBiquadFilter();
-    filter.type = 'lowpass'; filter.frequency.value = 180; drone.gain.value = .035;
+    filter.type = 'lowpass'; filter.frequency.value = 220; drone.gain.value = .035;
     filter.connect(drone).connect(master);
-    [48, 49.2].forEach((hz, i) => {
-      const osc = context.createOscillator(); osc.type = i ? 'triangle' : 'sine'; osc.frequency.value = hz;
+    [55, 55.8, 82.4].forEach((hz, i) => {
+      const osc = context.createOscillator(); osc.type = i === 1 ? 'triangle' : 'sine'; osc.frequency.value = hz;
       osc.connect(filter); osc.start();
     });
     const lfo = context.createOscillator(), lfoGain = context.createGain();
-    lfo.frequency.value = .13; lfoGain.gain.value = 48; lfo.connect(lfoGain).connect(filter.frequency); lfo.start();
+    lfo.frequency.value = .13; lfoGain.gain.value = 55; lfo.connect(lfoGain).connect(filter.frequency); lfo.start();
     const engineFilter = context.createBiquadFilter(), engineGain = context.createGain(), engine = context.createOscillator();
-    engine.type = 'sawtooth'; engine.frequency.value = 42; engineFilter.type = 'lowpass'; engineFilter.frequency.value = 140; engineGain.gain.value = .006;
+    engine.type = 'sawtooth'; engine.frequency.value = 72; engineFilter.type = 'lowpass'; engineFilter.frequency.value = 220; engineGain.gain.value = .006;
     engine.connect(engineFilter).connect(engineGain).connect(master); engine.start();
     const noiseBuffer = context.createBuffer(1, Math.floor(context.sampleRate*.65), context.sampleRate), noise = noiseBuffer.getChannelData(0);
     for (let i=0;i<noise.length;i++) noise[i] = Math.random()*2-1;
     audio = {
-      context, master, noiseBuffer, muted:false, boosting:false,
+      context, master, noiseBuffer, muted:false, boosting:false, lastUpdate:-1,
       update(speed, boosting){
         const now = context.currentTime, thrust = clamp(Math.abs(speed)/BOOST, 0, 1);
-        engine.frequency.setTargetAtTime(42 + thrust*44, now, .12);
-        engineFilter.frequency.setTargetAtTime(140 + thrust*180, now, .14);
-        engineGain.gain.setTargetAtTime(.006 + thrust*.023, now, .16);
         if (boosting && !this.boosting) this.boost();
         this.boosting = boosting;
+        if (now - this.lastUpdate < .08) return;
+        this.lastUpdate = now;
+        engine.frequency.setTargetAtTime(72 + thrust*88, now, .12);
+        engineFilter.frequency.setTargetAtTime(220 + thrust*320, now, .14);
+        engineGain.gain.setTargetAtTime(.006 + thrust*.023, now, .16);
       },
       tone(startHz, endHz, duration, type, volume, when=context.currentTime){
         const osc = context.createOscillator(), gain = context.createGain();
@@ -686,6 +688,7 @@ function pollXR(){
 
 function poke(){
   lastInput = performance.now();
+  if (audio && audio.context.state === 'suspended') audio.context.resume().catch(() => {});
   if (launched && autopilot){ autopilot = false; turnVel.set(0,0); log('MANUAL CONTROL'); }
 }
 
@@ -1227,7 +1230,7 @@ function bindInput(){
       case 'Space': if (!e.repeat) fire(); e.preventDefault(); break;
       case 'KeyH': $('help').classList.toggle('off'); break;
       case 'KeyB': bloomOn = !bloomOn; log(bloomOn ? 'BLOOM ON' : 'BLOOM OFF'); break;
-      case 'KeyM': if (audio){ const muted = audio.toggle(); log(muted ? 'AUDIO MUTED' : 'AUDIO ONLINE'); } break;
+      case 'KeyM': if (!e.repeat && audio){ const muted = audio.toggle(); log(muted ? 'AUDIO MUTED' : 'AUDIO ONLINE'); } break;
     }
   });
   addEventListener('keyup', e => { switch (e.code){ case 'KeyW': case 'ArrowUp': keys.w = false; break; case 'KeyS': case 'ArrowDown': keys.s = false; break; case 'ShiftLeft': case 'ShiftRight': keys.shift = false; break; } });
