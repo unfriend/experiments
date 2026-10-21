@@ -8,20 +8,74 @@
     <meta name="experiment-description" content="Overview directory of all experiments with links and auto loaded file descriptions.">
     <title>Directory Index</title>
     <style>
+        :root {
+            color-scheme: light;
+            --background: #fff;
+            --foreground: #111;
+            --link: #00e;
+            --visited-link: #551a8b;
+            --description: #444;
+            --button-background: #f2f2f2;
+            --button-border: #777;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                color-scheme: dark;
+                --background: #181818;
+                --foreground: #eee;
+                --link: #8ab4f8;
+                --visited-link: #c8a2e8;
+                --description: #bbb;
+                --button-background: #303030;
+                --button-border: #888;
+            }
+        }
+
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --background: #181818;
+            --foreground: #eee;
+            --link: #8ab4f8;
+            --visited-link: #c8a2e8;
+            --description: #bbb;
+            --button-background: #303030;
+            --button-border: #888;
+        }
+
         body {
             font-family: sans-serif;
             padding: 2rem;
             line-height: 1.5;
+            background: var(--background);
+            color: var(--foreground);
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
         }
         
         /* Classic link styling */
         a {
-            color: blue;
+            color: var(--link);
             text-decoration: underline;
         }
         
         a:visited {
-            color: purple;
+            color: var(--visited-link);
+        }
+
+        #theme-toggle {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--button-border);
+            border-radius: 0.25rem;
+            background: var(--button-background);
+            color: var(--foreground);
+            font: inherit;
+            cursor: pointer;
         }
 
         ul {
@@ -35,12 +89,25 @@
 
         .description {
             margin-left: 0.4rem;
-            color: #444;
+            color: var(--description);
         }
     </style>
+    <script>
+        try {
+            const savedTheme = localStorage.getItem('index-theme');
+            if (savedTheme === 'light' || savedTheme === 'dark') {
+                document.documentElement.dataset.theme = savedTheme;
+            }
+        } catch (_) {
+            // Theme selection still works for this page when storage is unavailable.
+        }
+    </script>
 </head>
 <body>
-    <h1>list of experiments:</h1>
+    <header class="page-header">
+        <h1>list of experiments:</h1>
+        <button id="theme-toggle" type="button" aria-pressed="false">Dark mode</button>
+    </header>
     
     <ul>
         <!-- Loop 1: Jekyll Pages -->
@@ -94,6 +161,33 @@
                     });
             });
         })();
+
+        const themeToggle = document.getElementById('theme-toggle');
+        const root = document.documentElement;
+
+        function updateThemeToggle() {
+            const isDark = root.dataset.theme
+                ? root.dataset.theme === 'dark'
+                : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            themeToggle.textContent = isDark ? 'Light mode' : 'Dark mode';
+            themeToggle.setAttribute('aria-pressed', String(isDark));
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = root.dataset.theme
+                ? root.dataset.theme === 'dark'
+                : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const nextTheme = isDark ? 'light' : 'dark';
+            root.dataset.theme = nextTheme;
+            try {
+                localStorage.setItem('index-theme', nextTheme);
+            } catch (_) {
+                // The selected theme remains active until the page is reloaded.
+            }
+            updateThemeToggle();
+        });
+
+        updateThemeToggle();
     </script>
 
 </body>
