@@ -78,13 +78,13 @@ button.go:focus-visible{outline:2px solid #fff;outline-offset:3px}
     </div>
     <p class="vrnote" id="vr-note">Checking for a VR headset…</p>
     <div class="keys">
-      <div><b>POINTER</b>steer</div><div><b>W / S</b>thrust · brake</div><div><b>SHIFT</b>overdrive</div>
+      <div><b>POINTER</b>steer</div><div><b>W / S</b>thrust · brake</div><div><b>A / D</b>yaw</div><div><b>Q / E</b>pitch</div><div><b>SHIFT</b>overdrive</div>
       <div><b>SPACE / CLICK</b>fire tracer</div><div><b>H</b>help</div><div><b>B</b>bloom on / off</div>
     </div>
   </div>
 </div>
 
-<div id="help" class="off"><b>W/S</b> thrust · <b>SHIFT</b> overdrive · <b>SPACE</b> tracer · <b>B</b> bloom · <b>H</b> hide<br>VR: right stick steer · left trigger thrust · grip overdrive · right trigger fire</div>
+<div id="help" class="off"><b>W/S</b> thrust · <b>A/D</b> yaw · <b>Q/E</b> pitch · <b>SHIFT</b> overdrive · <b>SPACE</b> tracer · <b>B</b> bloom · <b>H</b> hide<br>VR: right stick steer · left trigger thrust · grip overdrive · right trigger fire</div>
 <div class="touch"><button class="b" id="t-boost" type="button">BOOST</button><button id="t-fire" type="button">FIRE</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -501,7 +501,7 @@ function mountHigh(key, az, y, h){
 // ================================================================ game state
 let speed = 0, targetSpeed = 0, energy = 100, gunSide = 1;
 const CRUISE = 26, BOOST = 70, REVERSE = -8, AP_CRUISE = 9;
-const keys = { w:false, s:false, shift:false };
+const keys = { w:false, s:false, a:false, d:false, q:false, e:false, shift:false };
 const ptr = { x:VW/2, y:VH*.4, mouse:false, touchThrust:false };
 const yawPitch = new THREE.Vector2(), turnVel = new THREE.Vector2();
 let lastInput = performance.now(), launched = false, inXR = false;
@@ -559,6 +559,9 @@ function updateFlight(dt){
       $('hold').style.opacity = over && ptr.mouse ? 1 : 0;
       if (!over){ inYaw = dzone(clamp((ptr.x - VW/2)/(VW*.42), -1, 1)); inPitch = dzone(clamp((VH*.36 - ptr.y)/(VH*.34), -1, 1)); }
     }
+    inYaw = clamp(inYaw + Number(keys.d) - Number(keys.a), -1, 1);
+    inPitch = clamp(inPitch + Number(keys.e) - Number(keys.q), -1, 1);
+    if (keys.a || keys.d || keys.q || keys.e) lastInput = now;
     // inertia: turn rates ease toward the stick instead of snapping
     turnVel.x = lerp(turnVel.x, -inYaw*.55, damp(1.6, dt));
     turnVel.y = lerp(turnVel.y, inPitch*.42, damp(1.6, dt));
@@ -1152,13 +1155,17 @@ function bindInput(){
     switch (e.code){
       case 'KeyW': case 'ArrowUp': keys.w = true; break;
       case 'KeyS': case 'ArrowDown': keys.s = true; break;
+      case 'KeyA': keys.a = true; break;
+      case 'KeyD': keys.d = true; break;
+      case 'KeyQ': keys.q = true; break;
+      case 'KeyE': keys.e = true; break;
       case 'ShiftLeft': case 'ShiftRight': keys.shift = true; break;
       case 'Space': if (!e.repeat) fire(); e.preventDefault(); break;
       case 'KeyH': $('help').classList.toggle('off'); break;
       case 'KeyB': bloomOn = !bloomOn; log(bloomOn ? 'BLOOM ON' : 'BLOOM OFF'); break;
     }
   });
-  addEventListener('keyup', e => { switch (e.code){ case 'KeyW': case 'ArrowUp': keys.w = false; break; case 'KeyS': case 'ArrowDown': keys.s = false; break; case 'ShiftLeft': case 'ShiftRight': keys.shift = false; break; } });
+  addEventListener('keyup', e => { switch (e.code){ case 'KeyW': case 'ArrowUp': keys.w = false; break; case 'KeyS': case 'ArrowDown': keys.s = false; break; case 'KeyA': keys.a = false; break; case 'KeyD': keys.d = false; break; case 'KeyQ': keys.q = false; break; case 'KeyE': keys.e = false; break; case 'ShiftLeft': case 'ShiftRight': keys.shift = false; break; } });
   $('btn-launch').addEventListener('click', launch);
   $('t-fire').addEventListener('pointerdown', e => { e.preventDefault(); poke(); fire(); });
   $('t-boost').addEventListener('pointerdown', e => { e.preventDefault(); poke(); keys.shift = true; ptr.touchThrust = true; });
