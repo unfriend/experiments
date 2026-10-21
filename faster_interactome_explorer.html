@@ -247,17 +247,17 @@ function buildScenery(){
 }
 
 // ---------------------------------------------------------------- network
-const NODE_VS = `attribute float aSize; attribute vec3 aColor; attribute float aSeed;
-  uniform float uTime; uniform float uScale; uniform float uFog; varying vec3 vC; varying float vF;
+const NODE_VS = `attribute float aSize; attribute vec3 aColor; attribute float aSeed; attribute float aReveal;
+  uniform float uTime; uniform float uScale; uniform float uFog; uniform float uProgress; varying vec3 vC; varying float vF; varying float vR;
   void main(){ vec4 mv = modelViewMatrix*vec4(position,1.); float tw = .78 + .22*sin(uTime*1.7 + aSeed*50.);
     gl_PointSize = clamp(aSize*uScale*tw/-mv.z, 0., 64.); gl_Position = projectionMatrix*mv;
-    float d = -mv.z; vF = 1. - exp(-uFog*uFog*d*d); vC = aColor; }`;
-const NODE_FS = `varying vec3 vC; varying float vF; uniform float uGain;
+    float d = -mv.z; vF = 1. - exp(-uFog*uFog*d*d); vC = aColor; vR = smoothstep(aReveal, aReveal + .06, uProgress); }`;
+const NODE_FS = `varying vec3 vC; varying float vF; varying float vR; uniform float uGain;
   void main(){ vec2 c = gl_PointCoord-.5; float r = length(c); if (r > .5) discard;
     float core = smoothstep(.5,0.,r); vec3 col = vC*pow(core,1.8)*1.0 + vec3(1.)*pow(core,10.)*.45;
-    gl_FragColor = vec4(col*(1.-vF)*uGain, 1.); }`;
+    gl_FragColor = vec4(col*(1.-vF)*uGain*vR, 1.); }`;
 function nodeMaterial(fog, gain = 1){
-  const m = new THREE.ShaderMaterial({ uniforms:{ uTime:uniformsShared.uTime, uScale:{ value:600 }, uFog:{ value:fog }, uGain:{ value:gain } },
+  const m = new THREE.ShaderMaterial({ uniforms:{ uTime:uniformsShared.uTime, uScale:{ value:600 }, uFog:{ value:fog }, uGain:{ value:gain }, uProgress:{ value:1 } },
     vertexShader:NODE_VS, fragmentShader:NODE_FS, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
   pointMats.push(m); return m;
 }
@@ -266,14 +266,14 @@ function generateNetwork(){
   const mods = [];
   SECT.forEach((s,ci) => { for (let m=0;m<MODS;m++){ const c = CENTERS[ci];
     mods.push({ ci, x:c[0]+gauss()*50, y:c[1]+gauss()*38, z:c[2]+gauss()*50, r:9 + srand()*9 }); } });
-  const pos = new Float32Array(N*3), col = new Float32Array(N*3), size = new Float32Array(N), seed = new Float32Array(N);
+  const pos = new Float32Array(N*3), col = new Float32Array(N*3), size = new Float32Array(N), seed = new Float32Array(N), reveal = new Float32Array(N);
   for (let i=0;i<N;i++){
     const ci = Math.floor(srand()*SECT.length), mi = ci*MODS + Math.floor(Math.pow(srand(),1.6)*MODS), m = mods[mi];
     const p = new THREE.Vector3(m.x + gauss()*m.r, m.y + gauss()*m.r, m.z + gauss()*m.r);
     const s = SECT[ci], pre = s.prefix[Math.floor(srand()*s.prefix.length)];
     nodes.push({ id:i, position:p, ci, mod:mi, colorHex:s.color, base:s.c3.clone(), disp:s.c3.clone(), name:`${pre}-${100+Math.floor(srand()*900)}`,
       fit:Math.min(40, Math.pow(srand(), -0.62)), degree:0, neighbors:[], nset:new Set(), r1:srand(), r2:srand() });
-    pos.set([p.x,p.y,p.z], i*3); seed[i] = srand();
+    pos.set([p.x,p.y,p.z], i*3); seed[i] = srand(); reveal[i] = i/N;
     const k = cellKey(Math.floor(p.x/CELL), Math.floor(p.y/CELL), Math.floor(p.z/CELL));
     let a = grid.get(k); if (!a){ a = []; grid.set(k,a); } a.push(i);
   }
@@ -307,7 +307,7 @@ function generateNetwork(){
     const a = hubs[Math.floor(srand()*hubs.length)], b = hubs[Math.floor(srand()*hubs.length)];
     if (a.mod !== b.mod && link(a,b,true)) bridgeCount++;
   }
-  nodes.forEach((n,i) => { size[i] = 1.9 + Math.sqrt(n.degree)*.85; col.set([n.base.r,n.base.g,n.base.b], i*3); maxDeg = Math.max(maxDeg, n.degree); });
+  nodes.forEach((n,i) => { size[i] = 2.2 + Math.sqrt(n.degree)*.95; col.set([n.base.r,n.base.g,n.base.b], i*3); maxDeg = Math.max(maxDeg, n.degree); });
   meanK = 2*edgeCount/N;
 
   nodesGeo = new THREE.BufferGeometry();
@@ -315,6 +315,7 @@ function generateNetwork(){
   nodesGeo.setAttribute('aColor', new THREE.BufferAttribute(col,3));
   nodesGeo.setAttribute('aSize', new THREE.BufferAttribute(size,1));
   nodesGeo.setAttribute('aSeed', new THREE.BufferAttribute(seed,1));
+  nodesGeo.setAttribute('aReveal', new THREE.BufferAttribute(reveal,1));
   nodesGeo.setDrawRange(0, 0); nodesGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(N),1));
   pointsMat = nodeMaterial(0.0016);
   const pts = new THREE.Points(nodesGeo, pointsMat); pts.frustumCulled = false; scene.add(pts);
@@ -731,7 +732,7 @@ function makeHologram(colorHex){
   group.children.forEach(c => c.position.sub(cen));
   maxR = 0; pts.forEach(p => { maxR = Math.max(maxR, p.distanceTo(cen) + .65); });
   const inner = new THREE.Group(); while (group.children.length) inner.add(group.children[0]);
-  inner.scale.setScalar(SHELL_R*.7/maxR); group.add(inner);
+  inner.scale.setScalar(SHELL_R*.82/maxR); group.add(inner);
   const sm = new THREE.MeshBasicMaterial({ color:colorHex, transparent:true, opacity:0 });
   const shell = new THREE.Mesh(new THREE.SphereGeometry(SHELL_R, 24, 16), sm); group.add(shell);
   inner.userData.spin = true;
@@ -1105,9 +1106,9 @@ function setupHolo(){
     const a = n.ci*Math.PI/3 + n.r1*Math.PI/3*.84, rad = .28 + n.r2*.72; L[2].set([Math.cos(a)*rad, clamp((n.degree - meanK)*.07, -.8, .8), Math.sin(a)*rad], i*3);
     const g = fib(rank[i], NS); L[3].set([g[0]*.9, g[1]*.9, g[2]*.9], i*3);
   });
-  const cur = new Float32Array(L[0]), col = new Float32Array(NS*3), size = new Float32Array(NS), seed = new Float32Array(NS), flash = new Float32Array(NS);
+  const cur = new Float32Array(L[0]), col = new Float32Array(NS*3), size = new Float32Array(NS), seed = new Float32Array(NS), reveal = new Float32Array(NS), flash = new Float32Array(NS);
   sample.forEach((n,i) => { size[i] = .0026*(1 + Math.sqrt(n.degree)*.3); seed[i] = n.r1; });
-  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(cur,3)); pg.setAttribute('aColor', new THREE.BufferAttribute(col,3)); pg.setAttribute('aSize', new THREE.BufferAttribute(size,1)); pg.setAttribute('aSeed', new THREE.BufferAttribute(seed,1));
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(cur,3)); pg.setAttribute('aColor', new THREE.BufferAttribute(col,3)); pg.setAttribute('aSize', new THREE.BufferAttribute(size,1)); pg.setAttribute('aSeed', new THREE.BufferAttribute(seed,1)); pg.setAttribute('aReveal', new THREE.BufferAttribute(reveal,1));
   const pts = new THREE.Points(pg, nodeMaterial(0, .38)); pts.frustumCulled = false; group.add(pts);
   const byMod = new Map(); sample.forEach((n,i) => { if (!byMod.has(n.mod)) byMod.set(n.mod, []); byMod.get(n.mod).push(i); });
   const E = 1100, slots = new Int32Array(E*2), age = new Float32Array(E), epos = new Float32Array(E*6), ecol = new Float32Array(E*6);
@@ -1277,6 +1278,7 @@ let telAcc = 0;
 function loop(){
   const dt = Math.min(.05, clock.getDelta()), t = clock.elapsedTime; frame++;
   uniformsShared.uTime.value = t;
+  if (pointsMat) pointsMat.uniforms.uProgress.value = bootFrac;
   if (!booted){ if (!bootT) bootT = performance.now(); const f = Math.min(1, (performance.now() - bootT)/2200), ef = 1 - Math.pow(1-f, 3);   // streaming reveal of the dataspace
     bootFrac = ef;
     $('sync-bar').style.width = (f*100).toFixed(0) + '%';
