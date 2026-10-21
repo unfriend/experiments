@@ -79,12 +79,12 @@ button.go:focus-visible{outline:2px solid #fff;outline-offset:3px}
     <p class="vrnote" id="vr-note">Checking for a VR headset…</p>
     <div class="keys">
       <div><b>POINTER</b>steer</div><div><b>W / S</b>thrust · brake</div><div><b>SHIFT</b>overdrive</div>
-      <div><b>SPACE / CLICK</b>fire tracer</div><div><b>H</b>help</div><div><b>B</b>bloom on / off</div>
+      <div><b>SPACE / CLICK</b>fire tracer</div><div><b>H</b>help</div><div><b>B</b>bloom on / off</div><div><b>M</b>audio mute</div>
     </div>
   </div>
 </div>
 
-<div id="help" class="off"><b>W/S</b> thrust · <b>SHIFT</b> overdrive · <b>SPACE</b> tracer · <b>B</b> bloom · <b>H</b> hide<br>VR: right stick steer · left trigger thrust · grip overdrive · right trigger fire</div>
+<div id="help" class="off"><b>W/S</b> thrust · <b>SHIFT</b> overdrive · <b>SPACE</b> tracer · <b>B</b> bloom · <b>M</b> audio · <b>H</b> hide<br>VR: right stick steer · left trigger thrust · grip overdrive · right trigger fire</div>
 <div class="touch"><button class="b" id="t-boost" type="button">BOOST</button><button id="t-fire" type="button">FIRE</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -417,7 +417,7 @@ function buildCockpit(){
   const trig = new THREE.Mesh(new THREE.SphereGeometry(.009, 10, 10), M.cyan); trig.position.set(0, .2, -.022); stickPivot.add(trig);
 
   // holo projector pedestal at the centre
-  holoRoot = new THREE.Group(); holoRoot.position.set(0, -.115, -.64); rig.add(holoRoot);
+  holoRoot = new THREE.Group(); holoRoot.position.set(0, .05, -.5); rig.add(holoRoot);
   const ped = new THREE.Group(); ped.position.set(0, -.272, -.64); ck.add(ped);
   const col = new THREE.Mesh(new THREE.CylinderGeometry(.045, .07, .2, 24), M.hull); col.position.y = -.12; ped.add(col);
   const colLed = new THREE.Mesh(new THREE.TorusGeometry(.058, .003, 6, 48), M.violet); colLed.rotation.x = Math.PI/2; colLed.position.y = -.08; ped.add(colLed);
@@ -522,6 +522,73 @@ let xrThrust = false, xrBoost = false, xrBrake = false, xrFirePrev = false;
 
 function log(msg){ commsLog.push({ msg, at:performance.now() }); if (commsLog.length > 8) commsLog.shift(); }
 
+// ---------------------------------------------------------------- space audio (created on the launch gesture)
+let audio = null;
+function startAudio(){
+  if (audio){ audio.context.resume().catch(() => {}); return; }
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  try {
+    const context = new AudioContext(), master = context.createGain();
+    master.gain.value = .55; master.connect(context.destination);
+    const drone = context.createGain(), filter = context.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = 180; drone.gain.value = .035;
+    filter.connect(drone).connect(master);
+    [48, 49.2].forEach((hz, i) => {
+      const osc = context.createOscillator(); osc.type = i ? 'triangle' : 'sine'; osc.frequency.value = hz;
+      osc.connect(filter); osc.start();
+    });
+    const lfo = context.createOscillator(), lfoGain = context.createGain();
+    lfo.frequency.value = .13; lfoGain.gain.value = 48; lfo.connect(lfoGain).connect(filter.frequency); lfo.start();
+    const engineFilter = context.createBiquadFilter(), engineGain = context.createGain(), engine = context.createOscillator();
+    engine.type = 'sawtooth'; engine.frequency.value = 42; engineFilter.type = 'lowpass'; engineFilter.frequency.value = 140; engineGain.gain.value = .006;
+    engine.connect(engineFilter).connect(engineGain).connect(master); engine.start();
+    const noiseBuffer = context.createBuffer(1, Math.floor(context.sampleRate*.65), context.sampleRate), noise = noiseBuffer.getChannelData(0);
+    for (let i=0;i<noise.length;i++) noise[i] = Math.random()*2-1;
+    audio = {
+      context, master, noiseBuffer, muted:false, boosting:false,
+      update(speed, boosting){
+        const now = context.currentTime, thrust = clamp(Math.abs(speed)/BOOST, 0, 1);
+        engine.frequency.setTargetAtTime(42 + thrust*44, now, .12);
+        engineFilter.frequency.setTargetAtTime(140 + thrust*180, now, .14);
+        engineGain.gain.setTargetAtTime(.006 + thrust*.023, now, .16);
+        if (boosting && !this.boosting) this.boost();
+        this.boosting = boosting;
+      },
+      tone(startHz, endHz, duration, type, volume, when=context.currentTime){
+        const osc = context.createOscillator(), gain = context.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(startHz, when);
+        osc.frequency.exponentialRampToValueAtTime(endHz, when+duration);
+        gain.gain.setValueAtTime(.0001, when); gain.gain.exponentialRampToValueAtTime(volume, when+.015);
+        gain.gain.exponentialRampToValueAtTime(.0001, when+duration);
+        osc.connect(gain).connect(master); osc.start(when); osc.stop(when+duration+.03);
+      },
+      fire(){
+        this.tone(760, 150, .2, 'triangle', .12);
+        this.tone(290, 75, .17, 'square', .035);
+      },
+      boost(){
+        const now = context.currentTime, src = context.createBufferSource(), band = context.createBiquadFilter(), gain = context.createGain();
+        src.buffer = noiseBuffer; band.type = 'bandpass'; band.frequency.setValueAtTime(900, now);
+        band.frequency.exponentialRampToValueAtTime(110, now+.52); gain.gain.setValueAtTime(.0001, now);
+        gain.gain.exponentialRampToValueAtTime(.1, now+.04); gain.gain.exponentialRampToValueAtTime(.0001, now+.56);
+        src.connect(band).connect(gain).connect(master); src.start(now); src.stop(now+.6);
+      },
+      scan(){
+        const now = context.currentTime;
+        this.tone(660, 980, .3, 'sine', .075, now);
+        this.tone(990, 1320, .38, 'sine', .055, now+.11);
+      },
+      toggle(){
+        this.muted = !this.muted;
+        master.gain.setTargetAtTime(this.muted ? 0 : .55, context.currentTime, .04);
+        return this.muted;
+      }
+    };
+    context.resume().catch(() => {});
+  } catch (_) { audio = null; }
+}
+
 // ---------------------------------------------------------------- flight
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 const dzone = v => { const a = Math.abs(v); return a < .07 ? 0 : Math.sign(v)*Math.pow((a-.07)/.93, 1.4); };
@@ -532,7 +599,7 @@ function updateFlight(dt){
   if (launched && !autopilot && now - lastInput > 12000){
     autopilot = true; apTarget = null; apState = 'cruising'; apTimer = now + 9000; log('AUTOPILOT ENGAGED · SLOW SURVEY');
   }
-  let inYaw = 0, inPitch = 0;
+  let inYaw = 0, inPitch = 0, boosting = false;
   if (autopilot){
     if (apState === 'cruising'){
       if (!apTarget || ship.position.distanceTo(apTarget) < 30){
@@ -565,7 +632,7 @@ function updateFlight(dt){
     turnVel.y = lerp(turnVel.y, inPitch*.42, damp(1.6, dt));
     ship.rotateY(turnVel.x*dt); ship.rotateX(turnVel.y*dt);
     const thrust = keys.w || ptr.touchThrust || xrThrust;
-    const boosting = thrust && (keys.shift || xrBoost) && energy > 1;
+    boosting = thrust && (keys.shift || xrBoost) && energy > 1;
     targetSpeed = thrust ? (boosting ? BOOST : CRUISE) : (keys.s || xrBrake ? REVERSE : 0);
     if (boosting) energy = Math.max(0, energy - 22*dt);
     bank = lerp(bank, clamp(turnVel.x*.45, -.22, .22), damp(1.5, dt));
@@ -573,6 +640,7 @@ function updateFlight(dt){
   if (!((keys.shift || xrBoost) && (keys.w || ptr.touchThrust || xrThrust))) energy = Math.min(100, energy + 7*dt);
   _v.set(1,0,0).applyQuaternion(ship.quaternion); ship.rotateZ(-_v.y*damp(.8, dt));   // gentle auto-level
   speed = lerp(speed, targetSpeed, damp(.7, dt));
+  if (audio) audio.update(speed, boosting);
   ship.translateZ(-speed*dt);
 
   if (inXR){ rig.rotation.z = 0; }
@@ -672,6 +740,7 @@ function markSequenced(n, live){
   n.disp.copy(n.base).lerp(new THREE.Color(1,1,1), .6);
   const ca = nodesGeo.attributes.aColor; ca.setXYZ(n.id, n.disp.r, n.disp.g, n.disp.b); ca.needsUpdate = true;
   if (!live) return;
+  if (audio) audio.scan();
   let pts = 100 + n.degree*8; activity[n.ci] += 6;
   if (objective && n.ci === objective.ci){ pts += 150; objective.have++;
     if (objective.have >= objective.need){ score += 500; log(`OBJECTIVE COMPLETE +500 · ${SECT[objective.ci].label}`); newObjective(); } }
@@ -686,6 +755,7 @@ function newObjective(){
 // ---------------------------------------------------------------- tracers & walkers
 const tracerGeo = new THREE.CylinderGeometry(.05,.05,5,8).rotateX(Math.PI/2), tracerGlow = new THREE.CylinderGeometry(.18,.18,5,8).rotateX(Math.PI/2);
 function fire(){
+  if (audio) audio.fire();
   const p = new THREE.Mesh(tracerGeo, new THREE.MeshBasicMaterial({ color:0xff2e88, toneMapped:false }));
   p.add(new THREE.Mesh(tracerGlow, new THREE.MeshBasicMaterial({ color:0x00e5ff, transparent:true, opacity:.45, blending:THREE.AdditiveBlending })));
   gunSide *= -1; p.position.copy(ship.localToWorld(_v.set(gunSide*1.6, -1.2, -3)));
@@ -1118,7 +1188,7 @@ function start(data){
 
 function launch(){
   if (launched) return;
-  launched = true; autopilot = false; lastInput = performance.now(); $('splash').classList.add('gone');
+  startAudio(); launched = true; autopilot = false; lastInput = performance.now(); $('splash').classList.add('gone');
   $('help').classList.remove('off'); setTimeout(() => $('help').classList.add('off'), 14000);
   log('MANUAL CONTROL · W TO THRUST');
 }
@@ -1157,6 +1227,7 @@ function bindInput(){
       case 'Space': if (!e.repeat) fire(); e.preventDefault(); break;
       case 'KeyH': $('help').classList.toggle('off'); break;
       case 'KeyB': bloomOn = !bloomOn; log(bloomOn ? 'BLOOM ON' : 'BLOOM OFF'); break;
+      case 'KeyM': if (audio){ const muted = audio.toggle(); log(muted ? 'AUDIO MUTED' : 'AUDIO ONLINE'); } break;
     }
   });
   addEventListener('keyup', e => { switch (e.code){ case 'KeyW': case 'ArrowUp': keys.w = false; break; case 'KeyS': case 'ArrowDown': keys.s = false; break; case 'ShiftLeft': case 'ShiftRight': keys.shift = false; break; } });
