@@ -520,7 +520,7 @@ let frame = 0, bootT = 0, booted = false;
 let lockSprite, lockLabel, lockP, labelP;
 let xrThrust = false, xrBoost = false, xrBrake = false, xrFirePrev = false;
 
-function log(msg){ commsLog.push({ msg, at:performance.now() }); if (commsLog.length > 8) commsLog.shift(); }
+function log(msg){ SFX.chatter(); commsLog.push({ msg, at:performance.now() }); if (commsLog.length > 8) commsLog.shift(); }
 
 // ---------------------------------------------------------------- flight
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
@@ -679,6 +679,7 @@ function markSequenced(n, live){
   n.disp.copy(n.base).lerp(new THREE.Color(1,1,1), .6);
   const ca = nodesGeo.attributes.aColor; ca.setXYZ(n.id, n.disp.r, n.disp.g, n.disp.b); ca.needsUpdate = true;
   if (!live) return;
+  SFX.bleep('done');
   let pts = 100 + n.degree*8; activity[n.ci] += 6;
   if (objective && n.ci === objective.ci){ pts += 150; objective.have++;
     if (objective.have >= objective.need){ score += 500; log(`OBJECTIVE COMPLETE +500 · ${SECT[objective.ci].label}`); newObjective(); } }
@@ -690,6 +691,92 @@ function newObjective(){
   log(`OBJECTIVE · SEQUENCE ${need} ${SECT[ci].label}`);
 }
 
+// ---------------------------------------------------------------- audio: Brian Eno meets cyberpunk
+const SFX = (() => {
+  let ac, master, sfxBus, fx, muted = false, droneGain, lastWalk = 0, started = false;
+  const rnd = (a,b) => a + Math.random()*(b-a), mtof = m => 440*Math.pow(2,(m-69)/12);
+  function reverb(){
+    const len = ac.sampleRate*4.5, buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c=0;c<2;c++){ const d = buf.getChannelData(c); for (let i=0;i<len;i++) d[i] = (Math.random()*2-1)*Math.pow(1-i/len, 2.6); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function noiseBuf(sec){ const b = ac.createBuffer(1, ac.sampleRate*sec, ac.sampleRate), d = b.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1; return b; }
+  function env(g, t, a, peak, dec){ g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t+a); g.gain.exponentialRampToValueAtTime(0.0001, t+a+dec); }
+  function tone(type, f0, f1, t, a, dec, peak, dest, detune){
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t+a+dec);
+    if (detune) o.detune.value = detune; env(g, t, a, peak, dec); o.connect(g); g.connect(dest || sfxBus); o.start(t); o.stop(t+a+dec+.05); return o;
+  }
+  function pad(m, t, dur){
+    [-7, 0, 7].forEach(dt => {
+      const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(), pan = ac.createStereoPanner();
+      o.type = 'triangle'; o.frequency.value = mtof(m); o.detune.value = dt + rnd(-3,3); f.type = 'lowpass'; f.frequency.value = 900; pan.pan.value = rnd(-.8,.8);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(.05, t+dur*.45); g.gain.linearRampToValueAtTime(0.0001, t+dur);
+      o.connect(f); f.connect(g); g.connect(pan); pan.connect(droneGain); o.start(t); o.stop(t+dur+.1);
+    });
+  }
+  // slow generative Eno-style phrases: long, overlapping, incommensurate loops over a Dm9-ish pentatonic
+  const SCALE = [50, 57, 62, 64, 65, 69, 72, 74, 76, 81];
+  function bell(m, t){
+    const g = ac.createGain(), pan = ac.createStereoPanner(); pan.pan.value = rnd(-.9,.9); g.connect(pan); pan.connect(fx);
+    env(g, t, .01, .09, 3.5); tone('sine', mtof(m), mtof(m), t, .01, 3.5, 1, g); tone('sine', mtof(m)*2.756, mtof(m)*2.756, t, .01, 1.2, .25, g);
+  }
+  function scheduler(){
+    if (!ac) return;
+    const t = ac.currentTime + .1;
+    if (!scheduler.pad || t > scheduler.pad){ const root = [38,34,43,36][(scheduler.i = ((scheduler.i||0)+1)%4)]; pad(root+12, t, 14); pad(root+19, t+2, 14); scheduler.pad = t + 11; }
+    if (Math.random() < .55) bell(SCALE[Math.floor(Math.random()*SCALE.length)] + (Math.random()<.3?12:0), t + rnd(0, 3));
+    setTimeout(scheduler, 2600);
+  }
+  function start(){
+    if (started){ if (ac && ac.state === 'suspended') ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { ac = new AC(); } catch(e){ return; }
+    started = true;
+    master = ac.createGain(); master.gain.value = muted ? 0 : .8;
+    const comp = ac.createDynamicsCompressor(); master.connect(comp); comp.connect(ac.destination);
+    fx = reverb(); const fxOut = ac.createGain(); fxOut.gain.value = .9; fx.connect(fxOut); fxOut.connect(master);
+    sfxBus = ac.createGain(); sfxBus.gain.value = .8; sfxBus.connect(master);
+    const send = ac.createGain(); send.gain.value = .45; sfxBus.connect(send); send.connect(fx);
+    droneGain = ac.createGain(); droneGain.gain.value = 1; droneGain.connect(master); droneGain.connect(fx);
+    // background hum: detuned low saws through a slowly breathing lowpass + filtered air noise
+    const hum = ac.createGain(); hum.gain.value = .09; const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 160; lp.Q.value = 4;
+    [36, 36.07, 48.04].forEach((m,i) => { const o = ac.createOscillator(); o.type = i===2 ? 'sine' : 'sawtooth'; o.frequency.value = mtof(m); o.connect(lp); o.start(); });
+    const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = .07; lg.gain.value = 70; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+    lp.connect(hum); hum.connect(master);
+    const air = ac.createBufferSource(); air.buffer = noiseBuf(4); air.loop = true; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = .6;
+    const ag = ac.createGain(); ag.gain.value = .012; air.connect(bp); bp.connect(ag); ag.connect(master); air.start();
+    const l2 = ac.createOscillator(), l2g = ac.createGain(); l2.frequency.value = .05; l2g.gain.value = 900; l2.connect(l2g); l2g.connect(bp.frequency); l2.start();
+    scheduler();
+  }
+  const ok = () => ac && ac.state === 'running';
+  return {
+    start,
+    toggle(){ muted = !muted; if (master) master.gain.setTargetAtTime(muted ? 0 : .8, ac.currentTime, .05); return muted; },
+    fire(){ if (!ok()) return; const t = ac.currentTime;
+      tone('sawtooth', 1800, 110, t, .002, .22, .22); tone('square', 900, 60, t, .002, .16, .1, null, 12);
+      const n = ac.createBufferSource(); n.buffer = noiseBuf(.3); const f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'highpass'; f.frequency.setValueAtTime(6000, t); f.frequency.exponentialRampToValueAtTime(500, t+.15);
+      env(g, t, .001, .12, .14); n.connect(f); f.connect(g); g.connect(sfxBus); n.start(t); n.stop(t+.3); },
+    hit(){ if (!ok()) return; const t = ac.currentTime;
+      tone('sine', 220, 35, t, .003, .5, .5); const n = ac.createBufferSource(); n.buffer = noiseBuf(.6); const f = ac.createBiquadFilter(), g = ac.createGain();
+      f.type = 'bandpass'; f.frequency.setValueAtTime(3000, t); f.frequency.exponentialRampToValueAtTime(200, t+.5); env(g, t, .002, .3, .45); n.connect(f); f.connect(g); g.connect(sfxBus); n.start(t); n.stop(t+.6);
+      [0,4,7,12].forEach((s,i) => tone('triangle', mtof(74+s), mtof(74+s), t+.04+i*.05, .005, .8, .09)); },
+    node(newNode, step){ if (!ok()) return; const now = ac.currentTime; if (now - lastWalk < .04) return; lastWalk = now;
+      const m = SCALE[(step*3 + Math.floor(rnd(0,3))) % SCALE.length] + 12 + (newNode ? 12 : 0);
+      tone('sine', mtof(m), mtof(m), now, .004, newNode ? 1.4 : .45, newNode ? .16 : .07, null, rnd(-6,6));
+      if (newNode){ tone('triangle', mtof(m+7), mtof(m+7), now+.07, .004, 1.0, .07); tone('sine', mtof(m-12), mtof(m-12)*1.5, now, .004, .5, .08); } },
+    bleep(kind){ if (!ok()) return; const t = ac.currentTime;
+      const seq = kind === 'done' ? [880, 1320, 1760, 2637] : kind === 'lock' ? [1568, 1568] : [1760, 1175];
+      seq.forEach((f,i) => tone('square', f, f, t+i*.07, .002, .05, .035)); },
+    chatter(){ if (!ok()) return; const t = ac.currentTime, n = 2 + Math.floor(Math.random()*3);
+      for (let i=0;i<n;i++) tone('square', 700 + Math.floor(rnd(0,8))*180, 700 + Math.floor(rnd(0,8))*180, t+i*.06, .002, .035, .02); },
+    boost(on){ if (!ok()) return; const t = ac.currentTime;
+      const n = ac.createBufferSource(); n.buffer = noiseBuf(1.2); const f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.Q.value = 2;
+      f.frequency.setValueAtTime(on ? 300 : 2500, t); f.frequency.exponentialRampToValueAtTime(on ? 2500 : 250, t+1); env(g, t, .3, .08, .8); n.connect(f); f.connect(g); g.connect(sfxBus); n.start(t); n.stop(t+1.2); }
+  };
+})();
+addEventListener('keydown', e => { if (e.code === 'KeyM') SFX.toggle(); });
+addEventListener('pointerdown', () => { if (launched) SFX.start(); });
+
 // ---------------------------------------------------------------- tracers & walkers
 const tracerGeo = new THREE.CylinderGeometry(.05,.05,5,8).rotateX(Math.PI/2), tracerGlow = new THREE.CylinderGeometry(.18,.18,5,8).rotateX(Math.PI/2);
 function fire(){
@@ -697,7 +784,7 @@ function fire(){
   p.add(new THREE.Mesh(tracerGlow, new THREE.MeshBasicMaterial({ color:0x00e5ff, transparent:true, opacity:.45, blending:THREE.AdditiveBlending })));
   gunSide *= -1; p.position.copy(ship.localToWorld(_v.set(gunSide*1.6, -1.2, -3)));
   p.quaternion.copy(ship.quaternion); p.userData.vel = new THREE.Vector3(0,0,-1).applyQuaternion(ship.quaternion).multiplyScalar(240);
-  p.userData.life = 2.4; scene.add(p); projectiles.push(p);
+  p.userData.life = 2.4; scene.add(p); projectiles.push(p); SFX.fire();
 }
 function updateProjectiles(dt){
   for (let i=projectiles.length-1;i>=0;i--){
@@ -705,7 +792,7 @@ function updateProjectiles(dt){
     let hit = -1; forNear(p.position, 5, j => { if (hit < 0) hit = j; });
     if (hit >= 0 || p.userData.life <= 0){
       scene.remove(p); p.children[0].material.dispose(); p.material.dispose(); projectiles.splice(i,1);
-      if (hit >= 0){ const n = nodes[hit]; startWalker(n); score += 10; log(`TRACER HIT ${n.name} · WALK DEPLOYED`); }
+      if (hit >= 0){ const n = nodes[hit]; startWalker(n); SFX.hit(); score += 10; log(`TRACER HIT ${n.name} · WALK DEPLOYED`); }
     }
   }
 }
@@ -722,7 +809,8 @@ function updateWalkers(dt){
     const w = walkers[i]; if (!w.next){ killWalker(i); continue; }
     w.prog += dt*1.6;
     if (w.prog >= 1){ w.prog = 0; w.cur = w.next; w.steps--;
-      if (!mapped.has(w.cur.id)){ mapped.add(w.cur.id); score += 3; }
+      const fresh = !mapped.has(w.cur.id); if (fresh){ mapped.add(w.cur.id); score += 3; }
+      SFX.node(fresh, w.steps);
       activity[w.cur.ci] += 1;
       if (w.steps <= 0){ killWalker(i); continue; } w.next = pickN(w.cur); continue; }
     w.mesh.position.copy(w.cur.position).lerp(w.next.position, w.prog);
@@ -1127,6 +1215,7 @@ function launch(){
   if (launched) return;
   launched = true; autopilot = false; lastInput = performance.now(); $('splash').classList.add('gone');
   $('help').classList.remove('off'); setTimeout(() => $('help').classList.add('off'), 14000);
+  SFX.start(); SFX.bleep('done');
   log('MANUAL CONTROL · W TO THRUST');
 }
 
