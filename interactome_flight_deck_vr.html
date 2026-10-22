@@ -154,7 +154,7 @@ function makeRenderer(){
   $('stage').appendChild(renderer.domElement);
   maxAniso = renderer.capabilities.getMaxAnisotropy();
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x1a0430, 0.0016);
+  scene.fog = new THREE.FogExp2(0x1a0430, 0.0007);
   camera = new THREE.PerspectiveCamera(74, VW/VH, 0.02, 6000);
 
   // synthwave environment map for chrome reflections
@@ -247,16 +247,16 @@ function buildScenery(){
 
 // ---------------------------------------------------------------- network
 const NODE_VS = `attribute float aSize; attribute vec3 aColor; attribute float aSeed;
-  uniform float uTime; uniform float uScale; uniform float uFog; varying vec3 vC; varying float vF;
+  uniform float uTime; uniform float uScale; uniform float uFog; uniform float uMin; varying vec3 vC; varying float vF;
   void main(){ vec4 mv = modelViewMatrix*vec4(position,1.); float tw = .78 + .22*sin(uTime*1.7 + aSeed*50.);
-    gl_PointSize = clamp(aSize*uScale*tw/-mv.z, 0., 64.); gl_Position = projectionMatrix*mv;
+    gl_PointSize = clamp(aSize*uScale*tw/-mv.z, uMin, 64.); gl_Position = projectionMatrix*mv;
     float d = -mv.z; vF = 1. - exp(-uFog*uFog*d*d); vC = aColor; }`;
 const NODE_FS = `varying vec3 vC; varying float vF; uniform float uGain;
   void main(){ vec2 c = gl_PointCoord-.5; float r = length(c); if (r > .5) discard;
     float core = smoothstep(.5,0.,r); vec3 col = vC*pow(core,1.6)*1.5 + vec3(1.)*pow(core,9.)*.9;
     gl_FragColor = vec4(col*(1.-vF)*uGain, 1.); }`;
 function nodeMaterial(fog, gain = 1){
-  const m = new THREE.ShaderMaterial({ uniforms:{ uTime:uniformsShared.uTime, uScale:{ value:600 }, uFog:{ value:fog }, uGain:{ value:gain } },
+  const m = new THREE.ShaderMaterial({ uniforms:{ uTime:uniformsShared.uTime, uScale:{ value:900 }, uMin:{ value:fog > 0 ? 2.2 : 0 }, uFog:{ value:fog }, uGain:{ value:gain } },
     vertexShader:NODE_VS, fragmentShader:NODE_FS, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
   pointMats.push(m); return m;
 }
@@ -315,7 +315,7 @@ function generateNetwork(){
   nodesGeo.setAttribute('aSize', new THREE.BufferAttribute(size,1));
   nodesGeo.setAttribute('aSeed', new THREE.BufferAttribute(seed,1));
   nodesGeo.setDrawRange(0, 0);
-  pointsMat = nodeMaterial(0.0016);
+  pointsMat = nodeMaterial(0.0005);
   const pts = new THREE.Points(nodesGeo, pointsMat); pts.frustumCulled = false; scene.add(pts);
 
   edgesGeo = new THREE.BufferGeometry();
