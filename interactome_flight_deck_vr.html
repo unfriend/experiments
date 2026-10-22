@@ -626,15 +626,19 @@ function poke(){
 
 // ---------------------------------------------------------------- proximity, scanning, protein holograms
 const sphereGeo = new THREE.SphereGeometry(1, 10, 10), bondGeo = new THREE.CylinderGeometry(1, 1, 1, 6);
+const HOLO_RANGE = 260, HOLO_COUNT = 60;
 function checkProximity(dt){
   const sp = ship.position, inRange = [];
   let closest = null, cd = 1e9;
-  forNear(sp, 70, (i, d2) => { const d = Math.sqrt(d2); inRange.push([nodes[i], d]); if (d < cd){ cd = d; closest = nodes[i]; } });
+  forNear(sp, HOLO_RANGE, (i, d2) => { const d = Math.sqrt(d2); inRange.push([nodes[i], d]); if (d < cd){ cd = d; closest = nodes[i]; } });
   inRange.sort((a,b) => a[1]-b[1]);
-  const near = inRange.filter(x => x[1] < 45).slice(0, 6).map(x => x[0]);
+  const fwd = _v.set(0,0,-1).applyQuaternion(ship.quaternion);
+  const front = inRange.filter(x => _v2.copy(x[0].position).sub(sp).dot(fwd) > 0), rest = inRange.filter(x => !front.includes(x));
+  const near = front.concat(rest).slice(0, HOLO_COUNT).map(x => x[0]);
   const ids = new Set(near.map(n => n.id));
+  let spawned = 0;
   near.forEach(n => {
-    if (!activeHolos.has(n.id)){ const h = makeHologram(n.colorHex); h.group.position.copy(n.position); scene.add(h.group); activeHolos.set(n.id, h); }
+    if (!activeHolos.has(n.id)){ if (spawned++ >= 8) return; const h = makeHologram(n.colorHex); h.group.position.copy(n.position); scene.add(h.group); activeHolos.set(n.id, h); }
     else activeHolos.get(n.id).target = 1;
   });
   activeHolos.forEach((h,id) => { if (!ids.has(id)) h.target = 0; });
@@ -650,12 +654,12 @@ function makeHologram(colorHex){
   for (let k=0;k<5;k++){ const c = new THREE.Color().setHSL((hsl.h + Math.random()*.16 - .08 + 1)%1, clamp(hsl.s + Math.random()*.3 - .15, .3, 1), clamp(hsl.l + Math.random()*.4 - .2, .25, .75));
     const m = new THREE.MeshStandardMaterial({ color:c, emissive:c, emissiveIntensity:1.1 + Math.random()*.6, transparent:true, opacity:0, roughness:.15, metalness:.7 }); m.baseOpacity = .85; mats.push(m); }
   const bm = new THREE.MeshBasicMaterial({ color:colorHex, transparent:true, opacity:0, blending:THREE.AdditiveBlending }); bm.baseOpacity = .7; mats.push(bm);
-  const n = 14 + Math.floor(Math.random()*60); const cur = new THREE.Vector3(), pts = [];
+  const n = 10 + Math.floor(Math.random()*30); const cur = new THREE.Vector3(), pts = [];
   for (let i=0;i<n;i++){ pts.push(cur.clone()); const a = new THREE.Mesh(sphereGeo, mats[Math.floor(Math.random()*5)]); a.scale.setScalar(.15 + Math.random()*.5); a.position.copy(cur); group.add(a);
     const d = new THREE.Vector3(Math.random()-.5, Math.random()-.5, Math.random()-.5).normalize().multiplyScalar(.5 + Math.random()*1.6); d.sub(cur.clone().multiplyScalar(.15)); cur.add(d); }
   const up = new THREE.Vector3(0,1,0);
   for (let i=0;i<pts.length-1;i++){ const b = new THREE.Mesh(bondGeo, bm), d = pts[i].distanceTo(pts[i+1]); b.scale.set(.07, d, .07); b.position.copy(pts[i]).lerp(pts[i+1], .5); b.quaternion.setFromUnitVectors(up, pts[i+1].clone().sub(pts[i]).normalize()); group.add(b); }
-  group.scale.setScalar(.35 + Math.random()*.6);
+  group.scale.setScalar(.8 + Math.random()*.9);
   return { group, mats, target:1, op:0 };
 }
 function updateHolograms(dt){
